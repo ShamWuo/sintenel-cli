@@ -1,0 +1,73 @@
+{
+  "name": "sintenel-cli",
+  "version": "0.1.0",
+  "description": "AI-powered multi-agent security orchestrator with human-in-the-loop safety, tamper-evident audits, and cost-optimized workflows",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "sintenel": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "benchmark": "node scripts/benchmark.js",
+    "analyze-costs": "node scripts/analyze-costs.js"
+  },
+  "keywords": [
+    "security",
+    "ai",
+    "cli",
+    "orchestrator",
+    "vulnerability-scanning",
+    "red-team",
+    "blue-team",
+    "devsecops",
+    "audit",
+    "compliance",
+    "gemini",
+    "multi-agent"
+  ],
+  "author": "Sintenel Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/sintenel-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/sintenel-cli/issues"
+  },
+  "homepage": "https://github.com/yourusername/sintenel-cli#readme",
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.64",
+    "@ai-sdk/google": "^1.2.10",
+    "@ai-sdk/openai": "^3.0.48",
+    "ai": "^4.3.19",
+    "chalk": "^5.6.2",
+    "cli-progress": "^3.12.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.7",
+    "ora": "^9.3.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/cli-progress": "^3.11.6",
+    "@types/node": "^22.19.15",
+    "@vitest/coverage-v8": "^4.1.2",
+    "@vitest/ui": "^4.1.2",
+    "happy-dom": "^20.8.8",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^4.1.2"
+  }
+}

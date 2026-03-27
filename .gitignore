@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+.DS_Store
+sentinel-audit.log
+sentinel-audit.audit-bundle.json
+test-tmp-*
+benchmarks/
+coverage/
+*.backup.*
