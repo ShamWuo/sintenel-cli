@@ -16,6 +16,8 @@ import chalk from "chalk";
 import { confirmYesNo } from "./utils/confirm.js";
 import { ui } from "./utils/ui.js";
 
+import { selfHealSystem } from "./utils/self-heal.js";
+
 const program = new Command();
 
 async function startInteractiveREPL(cwd: string) {
@@ -132,6 +134,7 @@ program
   .argument("[goal...]", "High-level goal for the orchestrator (leave empty for interactive mode)")
   .option("-d, --cwd <dir>", "Working directory (default: process.cwd())")
   .action(async (goalParts: string[], opts: { cwd?: string }) => {
+    await selfHealSystem();
     const cwd = resolve(opts.cwd ?? process.cwd());
     const userGoal = goalParts.join(" ").trim();
 

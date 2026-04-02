@@ -1,3 +1,10 @@
 #!/bin/bash
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+if [ ! -f "$DIR/dist/sintenel.cjs" ]; then
+    echo "[ERROR] Sintenel bundle NOT FOUND at dist/sintenel.cjs"
+    echo "Please run 'npm run bundle' to generate the standalone executable."
+    exit 1
+fi
+
 node "$DIR/dist/sintenel.cjs" "$@"

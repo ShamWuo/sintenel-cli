@@ -60,6 +60,24 @@ To run a specific task instantly:
 .\sintenel.cmd "Audit all authorized users and compare against README.md"
 ```
 
+### 6. Hardened/Malicious Images (Bypassing `DisableCMD`)
+If the image has malware or Group Polices that block `cmd.exe` (Error: `The system cannot find the file specified`), use the **PowerShell wrapper**:
+
+```powershell
+.\sintenel.ps1 "Your objective"
+```
+
+**🔐 PRO TIP (Scoring Target):**
+If `cmd.exe` is blocked, you can often fix it via PowerShell to gain access back:
+```powershell
+Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\System" -Name "DisableCMD" -Value 0
+```
+
+> [!IMPORTANT]
+> If you are on a restricted "Hardened" image and the instructions above fail, please see the **[TROUBLESHOOTING_HARDENED_IMAGES.md](./TROUBLESHOOTING_HARDENED_IMAGES.md)** guide.
+
+---
+
 ## 🛠 Operational Modes
 
 ### 1. Scoring Run (`/score`)
