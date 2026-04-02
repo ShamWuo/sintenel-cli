@@ -43,6 +43,28 @@ npm install --omit=dev --ignore-scripts
 
 ---
 
+## 🚨 Symptom: `Error: Cannot find module '...esbuild'`
+You are likely using `--omit=dev` during `npm install`. Since `esbuild` is a development tool, it is not installed by default in a "Production" run.
+
+### ✅ THE FIX: Manual Install
+```powershell
+# 1. Force-install the compiler without scripts (bypasses blocks)
+npm install esbuild --no-save --ignore-scripts
+
+# 2. Run the direct build (bypasses cmd.exe shells)
+node node_modules\esbuild\bin\esbuild src\index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist\sintenel.cjs --minify --banner:js="#!/usr/bin/env node"
+```
+
+---
+
+## 🚨 Symptom: `TypeError [ERR_INVALID_ARG_VALUE]` / `import.meta` crash
+The bundle was built as **CommonJS (CJS)**, but some code used ESM-only `import.meta.url`. 
+
+### ✅ THE FIX: Polyfill (Already Applied)
+If you see this error, ensure you are using the **latest code** from `src/utils/secrets.ts`, which now includes a resilient `_require` polyfill that works in both ESM and CJS modes.
+
+---
+
 ## 🚨 Symptom: I can't bundle because `npm` is still broken
 If you can't run `npm run bundle`, skip `npm` and call the compiler directly via Node:
 
@@ -60,4 +82,13 @@ node node_modules\esbuild\bin\esbuild src\index.ts --bundle --platform=node --ta
 
 ---
 
-**Sintenel is designed for resiliency. If the tool is running, the image is being fixed. 🦾🛡️**
+## 🦾 Resilience Strategy: The "Zero-Wait" Bundle
+If the image is still too restricted to install **anything**, follow this "Nationals" workflow:
+
+1. **On your Dev Machine**: Run `npm run bundle` to create `dist/sintenel.cjs`.
+2. **On the Image**: Copy **JUST** the `dist/` folder and `sintenel.ps1`.
+3. **Execute**: Run `.\sintenel.ps1`. This skips all Node/NPM complexity and goes straight to the security engine. 🏁
+
+---
+
+**Sintenel is designed for resiliency. If the tool is running, the image is being fixed. 🛡️🦾**
