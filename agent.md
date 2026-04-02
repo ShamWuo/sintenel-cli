@@ -13,7 +13,7 @@ This document outlines the internal architecture, safety gates, and responsibili
    - **Fixer**: Specialized in mutations. Used for applying code patches, writing configuration files, removing malicious files, and running system modifications.
 3. **Auditability**
    - Every AI interaction, tool call, and system state change is logged via the `appendAuditLog` function.
-
+   
 ## Tool Limitations & Roles
 
 ### `fileOperator`

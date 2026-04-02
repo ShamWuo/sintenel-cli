@@ -13,7 +13,7 @@ Complete guide to get up and running in 5 minutes.
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/sintenel-cli.git
+git clone https://github.com/ShamWuo/sintenel-cli.git
 cd sintenel-cli
 ```
 
@@ -25,16 +25,19 @@ npm install
 
 ### 3. Configure API Key
 
-Create a `.env` file:
+Create a `.env` file and set your Gemini API key (choose the command for your OS):
 
-```bash
+**Windows (PowerShell)**:
+```powershell
 cp .env.example .env
+Add-Content .env "`nGOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here"
 ```
 
-Edit `.env` and add your Gemini API key:
-
-```env
-GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here
+**Linux / macOS (Bash)**:
+```bash
+cp .env.example .env
+echo "" >> .env
+echo "GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here" >> .env
 ```
 
 ### 4. Verify Installation
@@ -54,7 +57,20 @@ Build successful
 
 ## Your First Security Audit
 
-### Example 1: Find Hardcoded Secrets
+### 1. Interactive Mode (New! ✨)
+
+Run `sintenel` without arguments to enter the interactive "Gemini CLI" mode. This allows you to "talk" to the security agents and perform multiple tasks in one session while maintaining context.
+
+```bash
+npm run dev
+```
+
+**Why use Interactive Mode?**
+-   **Conversation History**: Agents remember previous findings and fixes.
+-   **Multi-step Workflows**: Scan for secrets, then fix them, then verify—all in one chat.
+-   **Efficiency**: No need to re-run the CLI for every small change.
+
+### 2. Single-shot Command
 
 ```bash
 npm run dev -- "Scan src/ for hardcoded API keys and passwords"

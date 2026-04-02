@@ -8,6 +8,7 @@ import { evaluateCommandPolicy } from "../policy/commandPolicy.js";
 
 const execFileAsync = promisify(execFile);
 const COMMAND_TIMEOUT_MS = 45_000;
+const MAX_AI_OUTPUT_CHARS = 20_000; // Cap response size to save model costs
 
 export const executePowerShellInputSchema = z.object({
   command: z
@@ -111,7 +112,7 @@ export function createExecutePowerShellTool(ctx: ExecutePowerShellContext) {
         const stdoutStr = String(stdout ?? "");
         const stderrStr = String(stderr ?? "");
         
-        // Truncate for audit log only (return full to agent)
+        // Full raw strings in audit log
         ctx.audit(ctx.cwd, {
           kind: "command",
           agent: ctx.agent,
@@ -123,9 +124,15 @@ export function createExecutePowerShellTool(ctx: ExecutePowerShellContext) {
           },
         });
         
+        // TRUNCATE FOR AI COST OPTIMIZATION
+        let truncatedStdout = stdoutStr;
+        if (stdoutStr.length > MAX_AI_OUTPUT_CHARS) {
+          truncatedStdout = stdoutStr.slice(0, MAX_AI_OUTPUT_CHARS) + `\n\n[TRUNCATED: Output too large (${stdoutStr.length} chars). Use Select-Object, Where-Object or grep to filter output.]`;
+        }
+
         return {
           ok: true as const,
-          stdout: stdoutStr,
+          stdout: truncatedStdout,
           stderr: stderrStr,
         };
       } catch (err: unknown) {

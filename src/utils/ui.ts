@@ -2,6 +2,30 @@ import chalk from 'chalk';
 import ora, { type Ora } from 'ora';
 import cliProgress from 'cli-progress';
 import Table from 'cli-table3';
+import { marked } from 'marked';
+import TerminalRenderer from 'marked-terminal';
+import inquirer from 'inquirer';
+
+// Initialize marked with terminal renderer for premium markdown output
+marked.setOptions({
+  renderer: new (TerminalRenderer as any)({
+    code: chalk.yellow,
+    blockquote: chalk.italic.dim,
+    html: chalk.gray,
+    heading: chalk.bold.cyan,
+    firstHeading: chalk.bold.cyan.underline,
+    hr: chalk.dim('─'.repeat(40)),
+    listitem: chalk.white,
+    table: chalk.reset,
+    paragraph: chalk.white,
+    strong: chalk.bold.magenta,
+    em: chalk.italic,
+    codespan: chalk.bgGray.white.bold,
+    del: chalk.strikethrough,
+    link: chalk.blue.underline,
+    href: chalk.blue.underline,
+  }),
+});
 
 export class UIManager {
   private spinner: Ora | null = null;
@@ -9,15 +33,15 @@ export class UIManager {
 
   startSpinner(text: string): void {
     this.spinner = ora({
-      text,
-      color: 'cyan',
+      text: chalk.blue(text),
+      color: 'blue',
       spinner: 'dots',
     }).start();
   }
 
   updateSpinner(text: string): void {
     if (this.spinner) {
-      this.spinner.text = text;
+      this.spinner.text = chalk.blue(text);
     }
   }
 
@@ -25,9 +49,9 @@ export class UIManager {
     if (!this.spinner) return;
     
     if (success) {
-      this.spinner.succeed(text || this.spinner.text);
+      this.spinner.succeed(chalk.green(text || this.spinner.text));
     } else {
-      this.spinner.fail(text || this.spinner.text);
+      this.spinner.fail(chalk.red(text || this.spinner.text));
     }
     this.spinner = null;
   }
@@ -41,7 +65,7 @@ export class UIManager {
 
   createProgressBar(total: number, label: string = 'Progress'): void {
     this.progressBar = new cliProgress.SingleBar({
-      format: `${chalk.cyan(label)} | ${chalk.cyan('{bar}')} | {percentage}% | {value}/{total}`,
+      format: `${chalk.blue(label)} | ${chalk.blue('{bar}')} | {percentage}% | {value}/{total}`,
       barCompleteChar: '\u2588',
       barIncompleteChar: '\u2591',
       hideCursor: true,
@@ -63,21 +87,25 @@ export class UIManager {
   }
 
   printHeader(text: string): void {
-    console.log('\n' + chalk.bold.cyan('='.repeat(60)));
-    console.log(chalk.bold.cyan(text));
-    console.log(chalk.bold.cyan('='.repeat(60)) + '\n');
+    console.log('\n' + chalk.bold.blue('╭' + '─'.repeat(58) + '╮'));
+    const padding = Math.max(0, Math.floor((58 - text.length) / 2));
+    const leftPad = ' '.repeat(padding);
+    const rightPad = ' '.repeat(58 - text.length - padding);
+    console.log(chalk.bold.blue('│' + leftPad + chalk.white(text) + rightPad + '│'));
+    console.log(chalk.bold.blue('╰' + '─'.repeat(58) + '╯') + '\n');
   }
 
   printSection(title: string): void {
-    console.log('\n' + chalk.bold.yellow(`▶ ${title}`));
+    console.log('\n' + chalk.bold.cyan(`◈ ${title}`));
+    console.log(chalk.dim('─'.repeat(title.length + 2)));
   }
 
   printSuccess(message: string): void {
-    console.log(chalk.green('✓ ') + message);
+    console.log(chalk.green('✔ ') + message);
   }
 
   printError(message: string): void {
-    console.log(chalk.red('✗ ') + message);
+    console.log(chalk.red('✘ ') + message);
   }
 
   printWarning(message: string): void {
@@ -88,22 +116,107 @@ export class UIManager {
     console.log(chalk.blue('ℹ ') + message);
   }
 
-  printAgent(agent: string, message: string): void {
+  /**
+   * Renders a markdown block to the terminal.
+   */
+  printMarkdown(md: string): void {
+    console.log((marked.parse(md) as string).trim());
+  }
+
+  /**
+   * Handles streaming text from the AI.
+   * Prints chunks immediately, and handles line breaks.
+   */
+  printStreamChunk(chunk: string): void {
+    process.stdout.write(chunk);
+  }
+
+  /**
+   * Finalizes a stream by adding a newline.
+   */
+  endStream(): void {
+    process.stdout.write('\n');
+  }
+
+  /**
+   * Clears the last N lines in the terminal.
+   */
+  clearLastLines(count: number): void {
+    if (count <= 0) return;
+    for (let i = 0; i < count; i++) {
+       // Move cursor up and clear line
+      process.stdout.write('\u001b[1A\u001b[2K');
+    }
+  }
+
+  /**
+   * Calculates the number of terminal lines occupied by a given text.
+   */
+  calculateLineCount(text: string): number {
+    const columns = process.stdout.columns || 80;
+    const lines = text.split('\n');
+    let count = 0;
+    for (const line of lines) {
+      count += Math.max(1, Math.ceil(line.length / columns));
+    }
+    return count;
+  }
+
+  /**
+   * Finalizes a block of streamed text by re-rendering it as markdown.
+   */
+  finalizeMarkdown(text: string): void {
+    if (!text.trim()) return;
+    const linesToClear = this.calculateLineCount(text);
+    this.clearLastLines(linesToClear);
+    this.printMarkdown(text);
+    console.log('');
+  }
+
+  /**
+   * Prints only the agent's header, useful before starting a stream.
+   */
+  printAgentHeader(agent: string): void {
     const agentColors: Record<string, typeof chalk> = {
-      orchestrator: chalk.magenta,
+      orchestrator: chalk.blue,
       scout: chalk.cyan,
-      fixer: chalk.green,
+      fixer: chalk.magenta,
+      system: chalk.gray,
     };
     const color = agentColors[agent.toLowerCase()] || chalk.white;
-    console.log(`\n${color.bold(`[${agent}]`)}\n${message}\n`);
+    console.log(`\n${color.bold(`[${agent.toUpperCase()}]`)}`);
+  }
+
+  printAgent(agent: string, message: string): void {
+    if (!message) return; // Use printAgentHeader for empty start
+    
+    this.printAgentHeader(agent);
+    this.printMarkdown(message);
+    console.log('');
+  }
+
+  async askConfirmation(prompt: string): Promise<boolean> {
+    if (process.env.HEADLESS === "true") {
+      console.log(`${chalk.yellow("◈ [HEADLESS]")} ${prompt} (Auto-Approved)`);
+      return true;
+    }
+    const { confirmed } = await inquirer.prompt([
+      {
+        type: "confirm",
+        name: "confirmed",
+        message: prompt,
+        default: true,
+      },
+    ]);
+    return confirmed;
   }
 
   createTable(headers: string[]): Table.Table {
     return new Table({
-      head: headers.map(h => chalk.cyan.bold(h)),
+      head: headers.map(h => chalk.blue.bold(h)),
       style: {
         head: [],
-        border: ['grey'],
+        border: ['blue'],
       },
       wordWrap: true,
     });
@@ -126,7 +239,7 @@ export class UIManager {
   }
 
   printCostEstimate(totalTokens: number, estimatedCost: number): void {
-    console.log(chalk.dim(`Estimated cost: ${chalk.green('$' + estimatedCost.toFixed(4))} (${totalTokens.toLocaleString()} tokens)`));
+    console.log(chalk.dim(`Estimated cost: ${chalk.green('$' + estimatedCost.toFixed(6))} (${totalTokens.toLocaleString()} tokens)`));
   }
 }
 
