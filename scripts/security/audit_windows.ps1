@@ -21,6 +21,8 @@ $AuditPayload.RegistryRun = [ordered]@{
     HKLM = @(Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Run | Select-Object * -ExcludeProperty PSPath, PSChildName, PSParentPath, PSDrive, PSProvider)
     HKCU = @(Get-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Run | Select-Object * -ExcludeProperty PSPath, PSChildName, PSParentPath, PSDrive, PSProvider)
     Shell = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name Shell).Shell
+    Userinit = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name Userinit).Userinit
+    LogonScript = (Get-ItemProperty "HKCU:\Environment" -Name UserInitMprLogonScript).UserInitMprLogonScript
 }
 
 $AuditPayload.HiddenShares = @(Get-SmbShare | Where-Object { $_.Name -like "*$" -and $_.Name -notmatch "^(IPC|ADMIN|C)$" } | Select-Object Name, Path)
