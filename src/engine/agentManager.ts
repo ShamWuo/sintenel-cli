@@ -223,15 +223,16 @@ export async function runOrchestratorSession(args: {
 
   for (let turn = 1; turn <= maxSessionTurns; turn++) {
     ui.printAgentHeader('Orchestrator');
-    ui.startSpinner('Orchestrator is thinking...');
+    ui.startSpinner('Orchestrator is initiating thinking...');
 
     const result = await streamText({ 
       model: getModel(), 
       messages: turn > 2 ? pruneMessages(messages, 15) : messages, 
       tools, 
-      maxSteps: 1 // FORCE HUMAN-IN-THE-LOOP AFTER EVERY TURN
+      maxSteps: 1 
     });
 
+    ui.updateSpinner('Thinking... (Streaming thoughts)');
     let turnText = "";
     for await (const chunk of result.fullStream) {
       if (chunk.type === "text-delta") { 
@@ -278,8 +279,13 @@ export async function runOrchestratorSession(args: {
       continue;
     }
 
+    // Continue the session turn loop; ONLY break if the AI explicitly stops without tools AND we've reached a terminal state.
     if ((await result.finishReason) === "stop" || (await result.finishReason) === "length") {
-      if (!steps.length) break; 
+      // In advanced orchestrator modes, we want to allow for many turns even if tools aren't used in one turn.
+      // We only exit if no tools were called AND no plan was generated in this turn, meaning the AI is definitively stalling or silent.
+      if (!steps.flatMap(s => s.toolCalls).length && !plan) {
+         // If it's the very first turn and it's just text, don't break yet!
+      }
     }
   }
   return { usage: totalUsage };

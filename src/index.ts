@@ -81,13 +81,18 @@ program
     const cwd = resolve(opts.cwd ?? process.cwd());
     const userGoal = goalParts.join(" ").trim();
 
+    // Debugging hint if the tool finishes too early
+    if (userGoal) {
+       ui.printInfo(`◈ [SESSION STARTING] Running goal: "${userGoal}"`);
+    }
+
     // Key loading logic
     if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim()) {
       const storedKey = await getApiKey();
       if (storedKey) {
         process.env.GOOGLE_GENERATIVE_AI_API_KEY = storedKey;
       } else {
-        ui.printError("Missing API Key.");
+        ui.printError("Missing API Key. Run 'node dist/sintenel.cjs setup' to save it.");
         process.exit(1);
       }
     }
@@ -97,7 +102,14 @@ program
       return;
     }
 
-    await new AgentManager(cwd).run(userGoal);
+    try {
+      const manager = new AgentManager(cwd);
+      await manager.run(userGoal);
+      ui.printSuccess("◈ [SESSION COMPLETE]");
+    } catch (err) {
+      ui.printError(`◈ [FAIL] ${err}`);
+      process.exit(1);
+    }
   });
 
 program
@@ -116,6 +128,6 @@ program
   });
 
 program.parseAsync(process.argv).catch((err) => {
-  console.error(err);
+  console.error(chalk.red("◈ [FATAL ERROR]"), err);
   process.exit(1);
 });
