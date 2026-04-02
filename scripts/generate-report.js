@@ -22,6 +22,7 @@ function generateReport(logPath, outputPath) {
   const findings = [];
   const remediations = [];
   const forensics = [];
+  const stateChanges = [];
   const systemEvents = [];
   let currentGoal = "";
   let startTime = "";
@@ -54,7 +55,18 @@ function generateReport(logPath, outputPath) {
         }
       }
 
-      if (entry.kind === "command") {
+      if (entry.kind === "tool" && entry.payload?.tool === "diffAuditState") {
+        // Find the result of this tool call in subsequent messages if needed, 
+        // but often the tool execution returns the data we want to log.
+        // For simplicity, we'll look for entries where the agent reported the diff.
+      }
+
+      if (entry.kind === "ai" && entry.agent === "orchestrator") {
+        const text = entry.payload.text || "";
+        if (text.includes("Audit state comparison complete")) {
+          stateChanges.push(text);
+        }
+      }
         if (entry.payload?.stdout?.includes("MD5") || entry.payload?.stdout?.includes("SHA256")) {
           forensics.push({
             ts: entry.ts,
@@ -81,6 +93,9 @@ ${findings.length > 0 ? findings.map(f => `- ${f}`).join("\n") : "_No specific f
 
 ## 🛠️ Remediations Applied
 ${remediations.length > 0 ? remediations.map(r => `- ${r}`).join("\n") : "_No specific remediations categorized by agent._"}
+
+## 🔄 System State Changes (Initial vs Current)
+${stateChanges.length > 0 ? stateChanges.join("\n\n") : "_No state comparison performed._"}
 
 ## 🕵️ Forensic Evidence
 ${forensics.length > 0 ? forensics.map(f => `### ${f.ts}\n**Command:** \`${f.command}\`\n**Output:**\n\`\`\`\n${f.output}\n\`\`\``).join("\n\n") : "_No forensic evidence gathered._"}

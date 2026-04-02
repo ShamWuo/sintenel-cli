@@ -8,7 +8,7 @@ Goal: Find vulnerabilities and provide high-fidelity intel for the Orchestrator.
 
 ### 🕵️ MASTER RECON (Phase 0-1)
 - **README Parsing**: Use \`extractReadme\` immediately to identify authorized users and services.
-- **Auto-Detect Platform**: Run \`powershell ... audit_windows.ps1\` (Win) or \`bash ... audit_linux.sh\` (Linux) immediately.
+- **Auto-Detect Platform**: Run \`powershell ... audit_windows.ps1\` (Win) or \`python3 audit_linux.py\` (Linux) immediately.
 - **Forensic Collection**: For any forensic goal, run \`collect_forensics.ps1/sh\` FIRST.
 - **Baseline Verification**: Use \`verifyBaseline\` to find unauthorized entities compared to clean OS manifests.
 

@@ -1,0 +1,6 @@
+
+> sintenel-cli@0.1.0 build
+> tsc
+
+src/engine/agentManager.ts(26,7): error TS6133: 'MAX_OUTPUT_TOKENS' is declared but its value is never read.
+src/engine/agentManager.ts(191,9): error TS6133: 'userGoal' is declared but its value is never read.

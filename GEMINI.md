@@ -46,8 +46,10 @@ Agents MUST prioritize the pre-written security audit and forensic scripts for i
 
 ### Top-Tier Hardening Tools
 - **README Extraction:** Use `extractReadme` to define the "Authorized State" (users, services, ports).
-- **Baseline Verification:** Use `verifyBaseline` to find anomalies (unauthorized users/SUIDs) compared to clean OS manifests (`ubuntu_2204`, `windows_10`).
-- **Firewall Whitelisting:** Use `generateFirewallPolicy` to create strict Netsh/UFW rules based on README authorized ports.
+- **Baseline Verification:** Use `verifyBaseline` to find anomalies (unauthorized users/SUIDs) compared to clean OS manifests.
+- **Firewall Whitelisting:** Use `generateFirewallPolicy` to create strict Netsh/UFW rules.
+- **Audit Diffing:** Use `diffAuditState` after remediation to provide proof of security improvement.
+- **Forensic Evidence:** Run `scripts/security/collect_forensics.*` scripts to gather deep login and history artifacts.
 
 ### Parallel Execution Strategy
 ...
