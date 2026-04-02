@@ -10,7 +10,116 @@ import {
   verifyAuditLog,
 } from "./utils/audit.js";
 
+import inquirer from "inquirer";
+import chalk from "chalk";
+import { ui } from "./utils/ui.js";
+
 const program = new Command();
+
+async function startInteractiveREPL(cwd: string) {
+  let manager = new AgentManager(cwd);
+  
+  ui.printHeader("SINTENEL INTERACTIVE MODE");
+  console.log(chalk.dim("Type your security goals or use /help for commands. Type 'exit' to quit.\n"));
+
+  const askGoal = async () => {
+    let combinedGoal = "";
+    for (;;) {
+      const { goal } = await inquirer.prompt([
+        {
+          type: "input",
+          name: "goal",
+          message: combinedGoal ? chalk.dim("...") : chalk.blue.bold("sintenel"),
+          prefix: combinedGoal ? " " : chalk.cyan("◈"),
+          transformer: (input: string) => chalk.white(input),
+        },
+      ]);
+      const trimmed = (goal as string).trim();
+      if (trimmed.endsWith("\\")) {
+        // Line continuation mode
+        combinedGoal += trimmed.slice(0, -1) + "\n";
+        continue;
+      }
+      combinedGoal += trimmed;
+      break;
+    }
+    return combinedGoal.trim();
+  };
+
+  for (;;) {
+    const goal = await askGoal();
+
+    if (!goal) continue;
+
+    const lowerGoal = goal.toLowerCase();
+    if (lowerGoal === "exit" || lowerGoal === "quit") {
+      break;
+    }
+
+    if (lowerGoal === "/help" || lowerGoal === "help") {
+      ui.printSection("Available Commands");
+      console.log(chalk.cyan("  /clear") + "   - Clear terminal screen");
+      console.log(chalk.cyan("  /reset") + "   - Reset conversation context (start fresh)");
+      console.log(chalk.cyan("  /history") + " - View conversation history");
+      console.log(chalk.cyan("  /usage") + "   - View session token usage");
+      console.log(chalk.cyan("  /score") + "   - Maximize CyberPatriot points (Score Run)");
+      console.log(chalk.cyan("  exit") + "      - End session\n");
+      continue;
+    }
+
+    if (lowerGoal === "/clear") {
+      process.stdout.write("\x1Bc");
+      ui.printHeader("SINTENEL INTERACTIVE MODE");
+      continue;
+    }
+
+    if (lowerGoal === "/reset") {
+      manager = new AgentManager(cwd);
+      ui.printSuccess("Conversation context reset. Starting fresh.");
+      continue;
+    }
+
+    if (lowerGoal === "/history") {
+      ui.printSection("Conversation History");
+      const msgs = manager.getMessages();
+      if (msgs.length <= 1) {
+        console.log(chalk.dim("No history yet."));
+      } else {
+        for (const m of msgs) {
+          if (m.role === "system") continue;
+          const label = m.role === "user" ? chalk.blue("USER") : chalk.magenta("AGENT");
+          console.log(`${label}: ${typeof m.content === "string" ? m.content.slice(0, 100) + (m.content.length > 100 ? "..." : "") : "[Complex object]"}`);
+        }
+      }
+      continue;
+    }
+
+    if (lowerGoal === "/usage") {
+      ui.printUsageStats(manager.getUsage());
+      continue;
+    }
+
+    if (lowerGoal === "/score") {
+      ui.printSection("INITIATING CYBERPATRIOT SCORING RUN");
+      const scoringGoal = "Execute the full CyberPatriot Scoring Optimization strategy. Systematically audit user accounts, password policies, firewall state, and suspicious services based on the knowledge_base/scoring_playbook.md. Your mission is to gain as many points as possible through stable hardening and investigation.";
+      try {
+        await manager.run(scoringGoal);
+      } catch (err) {
+        ui.printError(`Scoring run error: ${err}`);
+      }
+      continue;
+    }
+
+    try {
+      await manager.run(goal);
+    } catch (err) {
+      ui.printError(`Execution error: ${err}`);
+      if (process.env.DEBUG === "true") console.error(err);
+    }
+  }
+  
+  console.log(chalk.blue.bold("\nGoodbye, Agent."));
+}
 
 program
   .name("sintenel")
@@ -18,21 +127,21 @@ program
     "Sintenel-CLI — Multi-agent orchestrator (Orchestrator, Scout, Fixer) for security exercises"
   )
   .version("0.1.0")
-  .argument("[goal...]", "High-level goal for the orchestrator")
+  .argument("[goal...]", "High-level goal for the orchestrator (leave empty for interactive mode)")
   .option("-d, --cwd <dir>", "Working directory (default: process.cwd())")
   .action(async (goalParts: string[], opts: { cwd?: string }) => {
     const cwd = resolve(opts.cwd ?? process.cwd());
     const userGoal = goalParts.join(" ").trim();
-    if (!userGoal) {
-      program.help();
+
+    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim()) {
+      ui.printError("Missing GOOGLE_GENERATIVE_AI_API_KEY.");
+      console.log(chalk.dim("Please set it in your .env file. Use .env.example as a template."));
       process.exit(1);
     }
 
-    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim()) {
-      console.error(
-        "Missing GOOGLE_GENERATIVE_AI_API_KEY. Copy .env.example to .env and set it."
-      );
-      process.exit(1);
+    if (!userGoal) {
+      await startInteractiveREPL(cwd);
+      return;
     }
 
     await new AgentManager(cwd).run(userGoal);
@@ -51,16 +160,16 @@ program
     const result = verifyAuditLog(logPath, key);
 
     if (result.ok) {
-      console.log(`Audit verification: OK (${result.totalEntries} entries)`);
+      ui.printSuccess(`Audit verification: OK (${result.totalEntries} entries)`);
       if (result.terminalHash) {
-        console.log(`Terminal hash: ${result.terminalHash}`);
+        console.log(chalk.dim(`Terminal hash: ${result.terminalHash}`));
       }
       return;
     }
 
-    console.error(`Audit verification: FAILED (${result.totalEntries} entries)`);
+    ui.printError(`Audit verification: FAILED (${result.totalEntries} entries)`);
     for (const err of result.errors) {
-      console.error(`- ${err}`);
+      console.error(chalk.red(`- ${err}`));
     }
     process.exit(2);
   });
@@ -81,11 +190,11 @@ program
     const key = opts.hmacKey ?? process.env.SINTENEL_AUDIT_HMAC_KEY;
     const result = exportAuditBundle(auditPath, resolve(out), key);
     if (!result.ok) {
-      console.error(`Export failed: ${result.error}`);
+      ui.printError(`Export failed: ${result.error}`);
       process.exit(2);
     }
-    console.log(`Bundle exported: ${resolve(out)}`);
-    console.log(`Terminal hash: ${result.bundle.terminalHash ?? "(none)"}`);
+    ui.printSuccess(`Bundle exported: ${resolve(out)}`);
+    console.log(chalk.dim(`Terminal hash: ${result.bundle.terminalHash ?? "(none)"}`));
   });
 
 program
@@ -97,12 +206,12 @@ program
     const key = opts.hmacKey ?? process.env.SINTENEL_AUDIT_HMAC_KEY;
     const result = verifyAuditBundle(resolve(bundlePath), key);
     if (!result.ok) {
-      console.error(`Bundle verification failed: ${result.error}`);
+      ui.printError(`Bundle verification failed: ${result.error}`);
       process.exit(2);
     }
-    console.log("Bundle verification: OK");
-    console.log(`Audit path: ${result.bundle.auditLogPath}`);
-    console.log(`Terminal hash: ${result.bundle.terminalHash ?? "(none)"}`);
+    ui.printSuccess("Bundle verification: OK");
+    console.log(chalk.dim(`Audit path: ${result.bundle.auditLogPath}`));
+    console.log(chalk.dim(`Terminal hash: ${result.bundle.terminalHash ?? "(none)"}`));
   });
 
 await program.parseAsync(process.argv);

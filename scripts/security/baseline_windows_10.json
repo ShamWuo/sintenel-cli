@@ -1,0 +1,53 @@
+{
+  "os": "Windows 10/11 Pro/Enterprise",
+  "standard_users": [
+    "Administrator",
+    "Guest",
+    "DefaultAccount",
+    "WDAGUtilityAccount"
+  ],
+  "standard_groups": [
+    "Administrators",
+    "Users",
+    "Guests",
+    "Power Users",
+    "Backup Operators",
+    "Remote Desktop Users",
+    "Network Configuration Operators",
+    "Performance Monitor Users",
+    "Performance Log Users",
+    "Distributed COM Users",
+    "IIS_IUSRS",
+    "Cryptographic Operators",
+    "Event Log Readers",
+    "Certificate Service DCOM Access",
+    "RDS Remote Access Servers",
+    "RDS Endpoint Servers",
+    "RDS Management Servers",
+    "Hyper-V Administrators",
+    "Access Control Assistance Operators",
+    "Remote Management Users",
+    "Storage Replica Administrators"
+  ],
+  "standard_services": [
+    "LanmanServer",
+    "LanmanWorkstation",
+    "MpsSvc",
+    "WinDefend",
+    "Wuauserv",
+    "Dhcp",
+    "Dnscache",
+    "EventLog",
+    "RpcSs",
+    "Spooler",
+    "Winmgmt",
+    "Appinfo",
+    "BFE",
+    "LSM",
+    "ProfSvc",
+    "SamSs",
+    "ShellHWDetection",
+    "Schedule",
+    "SystemEventsBroker"
+  ]
+}

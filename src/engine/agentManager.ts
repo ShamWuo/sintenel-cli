@@ -1,4 +1,5 @@
-import { generateText, tool, type CoreMessage } from "ai";
+import { streamText, tool, type CoreMessage } from "ai";
+import chalk from "chalk";
 import { google } from "@ai-sdk/google";
 import { appendAuditLog } from "../utils/audit.js";
 import { confirmApprovalChallenge, confirmYesNo } from "../utils/confirm.js";
@@ -132,6 +133,8 @@ function pruneMessages(messages: CoreMessage[], keepLast: number = 10): CoreMess
   return pruned;
 }
 
+import { createExtractReadmeTool } from "../tools/extractReadme.js";
+
 async function runSubAgent(args: {
   name: "scout" | "fixer";
   task: string;
@@ -143,7 +146,7 @@ async function runSubAgent(args: {
   allowDestructiveOps: () => boolean;
 }): Promise<{ text: string; usage?: any }> {
   const system = args.name === "scout" ? SCOUT_SYSTEM : FIXER_SYSTEM;
-  const tools = {
+  const tools: Record<string, any> = {
     executePowerShell: createExecutePowerShellTool({
       cwd: args.cwd,
       audit: appendAuditLog,
@@ -157,53 +160,118 @@ async function runSubAgent(args: {
       cwd: args.cwd,
       audit: appendAuditLog,
       agent: args.name,
-      writeAllowed:
-        args.name === "scout" ? () => false : args.executionAllowed,
+      writeAllowed: args.name === "scout" ? () => false : args.executionAllowed,
       allowDestructiveOps: args.allowDestructiveOps,
     }),
   };
 
-  const result = await generateText({
-    model: getModel({ subagent: true }),
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: args.task },
-    ],
-    tools,
-    maxSteps: 20, // Reduced from 25
-    maxTokens: MAX_OUTPUT_TOKENS_SUBAGENT,
-    temperature: 0.3, // Lower temperature for focused, deterministic responses
-  });
+  if (args.name === "scout") {
+    tools.extractReadme = createExtractReadmeTool({
+      cwd: args.cwd,
+      audit: appendAuditLog,
+      agent: args.name,
+    });
+  }
 
-  const text = result.text ?? "";
-  appendAuditLog(args.cwd, {
-    kind: "ai",
-    agent: args.name,
-    payload: {
-      text,
-      finishReason: result.finishReason,
-      usage: result.usage,
-    },
-  });
-  return { text, usage: result.usage };
+  const agentName = args.name.toUpperCase();
+  ui.startSpinner(`[${agentName}] Analyzing task...`);
+
+  try {
+    const result = await streamText({
+      model: getModel({ subagent: true }),
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: args.task },
+      ],
+      tools,
+      maxSteps: 20,
+      maxTokens: MAX_OUTPUT_TOKENS_SUBAGENT,
+      temperature: 0.3,
+    });
+
+    let fullText = "";
+    for await (const chunk of result.fullStream) {
+      if (chunk.type === "text-delta") {
+        fullText += chunk.textDelta;
+      } else if (chunk.type === "tool-call") {
+        ui.updateSpinner(`[${agentName}] Running tool: ${chalk.bold.yellow(chunk.toolName)}...`);
+      } else if (chunk.type === "tool-result") {
+        ui.updateSpinner(`[${agentName}] Tool ${chunk.toolName} complete. Thinking...`);
+      }
+    }
+
+    ui.stopSpinner(true, `[${agentName}] Task complete.`);
+    
+    const usage = await result.usage;
+    const finishReason = await result.finishReason;
+
+    appendAuditLog(args.cwd, {
+      kind: "ai",
+      agent: args.name,
+      payload: {
+        text: fullText,
+        finishReason,
+        usage,
+      },
+    });
+
+    return { 
+      text: `### [${agentName}] Task Report\n${fullText}`, 
+      usage 
+    };
+  } catch (err) {
+    ui.stopSpinner(false, `[${agentName}] Execution failed.`);
+    throw err;
+  }
 }
 
 /**
  * Central engine: orchestrates the multi-agent loop, plan/confirm gate, and audit logging.
  */
 export class AgentManager {
+  private messages: CoreMessage[] = [{ role: "system", content: ORCHESTRATOR_SYSTEM }];
+  private totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+
   constructor(private readonly cwd: string) {}
 
-  async run(userGoal: string): Promise<void> {
-    return runOrchestratorSession({ cwd: this.cwd, userGoal });
+  public getMessages() {
+    return this.messages;
   }
+
+  public getUsage() {
+    return this.totalUsage;
+  }
+
+  async run(userGoal: string): Promise<void> {
+    this.messages.push({ role: "user", content: userGoal });
+    
+    // We pass the persistent state to the session runner
+    const result = await runOrchestratorSession({ 
+      cwd: this.cwd, 
+      messages: this.messages,
+      totalUsage: this.totalUsage 
+    });
+    
+    // Update local usage tracking
+    if (result.usage) {
+      this.totalUsage.promptTokens += result.usage.promptTokens;
+      this.totalUsage.completionTokens += result.usage.completionTokens;
+      this.totalUsage.totalTokens += result.usage.totalTokens;
+    }
+  }
+}
+
+export interface SessionResult {
+  usage: { promptTokens: number; completionTokens: number; totalTokens: number };
 }
 
 export async function runOrchestratorSession(args: {
   cwd: string;
-  userGoal: string;
-}): Promise<void> {
-  const { cwd, userGoal } = args;
+  messages: CoreMessage[];
+  totalUsage: { promptTokens: number; completionTokens: number; totalTokens: number };
+}): Promise<SessionResult> {
+  const { cwd, messages, totalUsage } = args;
+  const userGoal = (messages.filter(m => m.role === "user").pop()?.content as string) || "";
 
   const strictMode = process.env.SINTENEL_STRICT_MODE !== "false";
   const highAssuranceApproval =
@@ -324,13 +392,7 @@ export async function runOrchestratorSession(args: {
     }),
   };
 
-  const messages: CoreMessage[] = [
-    { role: "system", content: ORCHESTRATOR_SYSTEM },
-    { role: "user", content: userGoal },
-  ];
-
   // Plan & confirm loop: allow another model turn after Y to run tools and delegates.
-  let totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
   let turnCount = 0;
   const MAX_CONTEXT_MESSAGES = 15; // Prune context after this many messages
   
@@ -342,43 +404,73 @@ export async function runOrchestratorSession(args: {
         kind: "system",
         payload: { event: "session_end", reason: "max_turns_exceeded", turnCount, maxSessionTurns },
       });
-      return;
+      return { usage: totalUsage };
     }
     
     // Prune context to reduce token usage on long sessions
     const messagesToSend = turnCount > 2 ? pruneMessages(messages, MAX_CONTEXT_MESSAGES) : messages;
     
-    const result = await generateText({
+    // START STREAMING
+    ui.printAgentHeader('Orchestrator');
+    
+    const result = await streamText({
       model: getModel(),
       messages: messagesToSend,
       tools,
-      maxSteps: 25, // Reduced from 30
+      maxSteps: 25,
       maxTokens: MAX_OUTPUT_TOKENS,
-      temperature: 0.4, // Focused responses, less rambling
+      temperature: 0.4,
     });
 
-    for (const msg of result.response.messages) {
+    let turnResponseText = '';
+    let blockResponseText = '';
+    let hasStreamedText = false;
+
+    for await (const chunk of result.fullStream) {
+      if (chunk.type === 'text-delta') {
+        turnResponseText += chunk.textDelta;
+        blockResponseText += chunk.textDelta;
+        ui.printStreamChunk(chunk.textDelta);
+        hasStreamedText = true;
+      } else if (chunk.type === 'tool-call') {
+        if (hasStreamedText) {
+          ui.endStream();
+          ui.finalizeMarkdown(blockResponseText);
+          blockResponseText = '';
+          hasStreamedText = false;
+        }
+        ui.printInfo(`Agent requesting tool: ${chalk.bold.yellow(chunk.toolName)}...`);
+      } else if (chunk.type === 'tool-result') {
+        ui.printSuccess(`Tool ${chalk.bold.yellow(chunk.toolName)} executed successfully.`);
+      }
+    }
+    
+    if (hasStreamedText) {
+      ui.finalizeMarkdown(blockResponseText);
+    }
+
+    // Finalize message history
+    const response = await result.response;
+    for (const msg of response.messages) {
       messages.push(msg);
     }
 
-    if (result.text) {
-      ui.printAgent('Orchestrator', result.text);
-    }
-
     // Track cumulative usage
-    if (result.usage) {
-      totalUsage.promptTokens += result.usage.promptTokens || 0;
-      totalUsage.completionTokens += result.usage.completionTokens || 0;
-      totalUsage.totalTokens += result.usage.totalTokens || 0;
+    const usage = await result.usage;
+    if (usage) {
+      totalUsage.promptTokens += usage.promptTokens || 0;
+      totalUsage.completionTokens += usage.completionTokens || 0;
+      totalUsage.totalTokens += usage.totalTokens || 0;
     }
 
+    const finishReason = await result.finishReason;
     appendAuditLog(cwd, {
       kind: "ai",
       agent: "orchestrator",
       payload: {
-        text: result.text,
-        finishReason: result.finishReason,
-        usage: result.usage,
+        text: turnResponseText,
+        finishReason,
+        usage,
         cumulativeUsage: totalUsage,
       },
     });
@@ -390,10 +482,12 @@ export async function runOrchestratorSession(args: {
         kind: "system",
         payload: { event: "session_end", reason: "stuck_detected", totalUsage },
       });
-      return;
-    }
+        return { usage: totalUsage };
+      }
 
-    const pendingPlan = !planApproved ? extractExecutionPlan(result) : null;
+    // Await steps for plan extraction
+    const steps = await result.steps;
+    const pendingPlan = !planApproved ? extractExecutionPlan({ steps }) : null;
 
     if (pendingPlan) {
       planRequestAttempts = 0;
@@ -454,7 +548,7 @@ export async function runOrchestratorSession(args: {
           kind: "system",
           payload: { event: "session_end", reason: "plan_rejected" },
         });
-        return;
+        return { usage: totalUsage };
       }
 
       planApproved = true;
@@ -474,6 +568,24 @@ export async function runOrchestratorSession(args: {
     }
 
     if (!planApproved) {
+      const toolCalls = steps.flatMap(s => s.toolCalls);
+      // If the agent made any tool call that ISN'T submitExecutionPlan, it's a policy breach or we need a plan.
+      const hasActionableCalls = toolCalls.some(tc => tc.toolName !== 'submitExecutionPlan');
+      
+      if (hasActionableCalls) {
+        messages.push({
+          role: "user",
+          content: "Before any action or delegation, you MUST call submitExecutionPlan with the required context.",
+        });
+        continue;
+      }
+      
+      // If the agent just gave text and NO tools at all, it's answering a question. Let it stop.
+      if (toolCalls.length === 0 && turnResponseText) {
+        break;
+      }
+
+      // Otherwise, the agent might be stuck or forgot to plan for a goal
       planRequestAttempts += 1;
       if (planRequestAttempts >= 3) {
         console.log(
@@ -483,7 +595,7 @@ export async function runOrchestratorSession(args: {
           kind: "system",
           payload: { event: "session_end", reason: "missing_plan_context" },
         });
-        return;
+        return { usage: totalUsage };
       }
       messages.push({
         role: "user",
@@ -493,10 +605,11 @@ export async function runOrchestratorSession(args: {
       continue;
     }
 
-    if (result.finishReason !== "stop") {
+    const finalFinishReason = await result.finishReason;
+    if (finalFinishReason !== "stop") {
       appendAuditLog(cwd, {
         kind: "system",
-        payload: { event: "non_stop_finish", finishReason: result.finishReason },
+        payload: { event: "non_stop_finish", finishReason: finalFinishReason },
       });
     }
     
@@ -513,8 +626,5 @@ export async function runOrchestratorSession(args: {
     break;
   }
 
-  appendAuditLog(cwd, {
-    kind: "system",
-    payload: { event: "session_end", reason: "complete", totalUsage },
-  });
+  return { usage: totalUsage };
 }

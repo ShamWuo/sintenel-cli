@@ -6,6 +6,7 @@ import type { appendAuditLog } from "../utils/audit.js";
 
 const execFileAsync = promisify(execFile);
 const COMMAND_TIMEOUT_MS = 60_000;
+const MAX_AI_OUTPUT_CHARS = 20_000; // Cap output to AI to save costs (~5k tokens)
 
 export const executeShellInputSchema = z.object({
   command: z
@@ -105,11 +106,20 @@ export function createExecuteShellTool(ctx: ExecuteShellContext) {
           },
         });
 
+        // TRUNCATE FOR AI COST OPTIMIZATION
+        let truncatedStdout = stdoutStr;
+        let warning = "";
+        if (stdoutStr.length > MAX_AI_OUTPUT_CHARS) {
+          truncatedStdout = stdoutStr.slice(0, MAX_AI_OUTPUT_CHARS) + `\n\n[TRUNCATED: Output too large (${stdoutStr.length} chars). Use more specific filters or grep to see missing data.]`;
+          warning = "Output truncated for cost efficiency.";
+        }
+
         return {
           ok: true as const,
-          stdout: stdoutStr,
+          stdout: truncatedStdout,
           stderr: stderrStr,
           shell,
+          warning: warning || undefined,
         };
       } catch (err: unknown) {
         const e = err as {

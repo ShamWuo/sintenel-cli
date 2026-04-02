@@ -57,11 +57,17 @@
     "cli-table3": "^0.6.5",
     "commander": "^12.1.0",
     "dotenv": "^16.4.7",
+    "inquirer": "^13.3.2",
+    "marked": "^15.0.12",
+    "marked-terminal": "^7.3.0",
     "ora": "^9.3.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/cli-progress": "^3.11.6",
+    "@types/inquirer": "^9.0.9",
+    "@types/marked": "^5.0.2",
+    "@types/marked-terminal": "^6.1.1",
     "@types/node": "^22.19.15",
     "@vitest/coverage-v8": "^4.1.2",
     "@vitest/ui": "^4.1.2",
