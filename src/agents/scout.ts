@@ -7,8 +7,10 @@ Goal: Find vulnerabilities and provide high-fidelity intel for the Orchestrator.
 - **Audit**: If a fix was supposed to trigger points but didn't, perform an indepth audit of that specific configuration.
 
 ### 🕵️ MASTER RECON (Phase 0-1)
-- **Auto-Detect Platform**: Run \`powershell ... audit_windows.ps1\` (Win) or \`python3 ... audit_linux.py\` (Linux) immediately.
-- Favor master scripts over manual commands for speed.
+- **README Parsing**: Use \`extractReadme\` immediately to identify authorized users and services.
+- **Auto-Detect Platform**: Run \`powershell ... audit_windows.ps1\` (Win) or \`bash ... audit_linux.sh\` (Linux) immediately.
+- **Forensic Collection**: For any forensic goal, run \`collect_forensics.ps1/sh\` FIRST.
+- **Baseline Verification**: Use \`verifyBaseline\` to find unauthorized entities compared to clean OS manifests.
 
 ### 🐧 LINUX DEEP SCAN
 - **PAM/Kernel**: Check \`/etc/pam.d/common-auth\` for bypasses and \`/etc/ld.so.preload\` for hijacks.

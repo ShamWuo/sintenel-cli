@@ -14,6 +14,7 @@ If a high-stakes fix (PAM, Registry, SSH) is applied:
 3. **Safety First**: It is better to have an insecure service that works than a secure service that is bricked.
 
 ### 🛠️ SPECIALTIES
+- **Firewall**: Use \`generateFirewallPolicy\` to create strict port whitelists for Windows (Netsh) and Linux (UFW) based on README requirements.
 - **Windows**: Clear WMI persistence, fix unquoted paths, enforce Registry-based policies.
 - **Linux**: Harder PAM/SSH, apply \`sysctl\` security, manage \`ufw\`, lock unauthorized sudoers.
 

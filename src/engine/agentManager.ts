@@ -2,7 +2,7 @@ import { streamText, tool, type CoreMessage } from "ai";
 import chalk from "chalk";
 import { google } from "@ai-sdk/google";
 import { appendAuditLog } from "../utils/audit.js";
-import { confirmApprovalChallenge, confirmYesNo } from "../utils/confirm.js";
+import { confirmYesNo } from "../utils/confirm.js";
 import { createExecutePowerShellTool } from "../tools/executePowerShell.js";
 import { createFileOperatorTool } from "../tools/fileOperator.js";
 import {
@@ -13,10 +13,13 @@ import {
 import { FIXER_SYSTEM } from "../agents/fixer.js";
 import { ORCHESTRATOR_SYSTEM } from "../agents/orchestrator.js";
 import { SCOUT_SYSTEM } from "../agents/scout.js";
-import { evaluateCommandPolicy } from "../policy/commandPolicy.js";
 import { ui } from "../utils/ui.js";
 import { z } from "zod";
 import { createHash } from "node:crypto";
+import { createExtractReadmeTool } from "../tools/extractReadme.js";
+import { createSubmitVerificationTestTool } from "../tools/submitVerificationTest.js";
+import { createVerifyBaselineTool } from "../tools/verifyBaseline.js";
+import { createGenerateFirewallPolicyTool } from "../tools/generateFirewallPolicy.js";
 
 /** Gemini 3 Flash (preview). Override with GEMINI_MODEL. */
 const DEFAULT_MODEL = "gemini-3-flash-preview";
@@ -24,7 +27,6 @@ const DEFAULT_MODEL = "gemini-3-flash-preview";
 /** Lightweight model for sub-agents. Override with AI_SUBAGENT_MODEL. */
 const DEFAULT_SUBAGENT_MODEL = "gemini-3.1-flash-lite-preview";
 
-/** Maximum output tokens to limit response size and cost. */
 const MAX_OUTPUT_TOKENS = 4096;
 const MAX_OUTPUT_TOKENS_SUBAGENT = 2048;
 
@@ -63,7 +65,6 @@ function printPlanTable(plan: ExecutionPlan, rows: PlanRow[]): void {
     .digest("hex");
   
   ui.printHeader('EXECUTION PLAN (PENDING CONFIRMATION)');
-  
   ui.printInfo(`Summary: ${plan.summary}`);
   ui.printInfo(`Objective: ${plan.context.objective}`);
   ui.printInfo(`Scope: ${plan.context.scope}`);
@@ -92,48 +93,17 @@ function printPlanTable(plan: ExecutionPlan, rows: PlanRow[]): void {
   console.log('');
 }
 
-/**
- * Detects if agent is stuck in a loop (repeating similar messages).
- */
-function isAgentStuck(messages: CoreMessage[]): boolean {
-  if (messages.length < 6) return false;
-  
-  const recentAssistant = messages
-    .slice(-6)
-    .filter(m => m.role === "assistant")
-    .map(m => typeof m.content === "string" ? m.content : "")
-    .filter(c => c.length > 0);
-  
-  if (recentAssistant.length < 3) return false;
-  
-  // Check if last 3 messages are very similar (edit distance or length similarity)
-  const lengths = recentAssistant.slice(-3).map(m => m.length);
-  const avgLength = lengths.reduce((a, b) => a + b, 0) / lengths.length;
-  const variance = lengths.every(len => Math.abs(len - avgLength) < avgLength * 0.1);
-  
-  return variance;
-}
-
-/**
- * Prunes conversation history to reduce token usage while keeping essential context.
- * Keeps: system message, initial user goal, last N messages.
- */
 function pruneMessages(messages: CoreMessage[], keepLast: number = 10): CoreMessage[] {
   if (messages.length <= keepLast + 2) return messages;
-  
   const system = messages.find(m => m.role === "system");
   const userGoal = messages.find((m, i) => m.role === "user" && i > 0);
   const recent = messages.slice(-keepLast);
-  
   const pruned: CoreMessage[] = [];
   if (system) pruned.push(system);
   if (userGoal && !recent.includes(userGoal)) pruned.push(userGoal);
   pruned.push(...recent.filter(m => m !== system && m !== userGoal));
-  
   return pruned;
 }
-
-import { createExtractReadmeTool } from "../tools/extractReadme.js";
 
 async function runSubAgent(args: {
   name: "scout" | "fixer";
@@ -171,6 +141,24 @@ async function runSubAgent(args: {
       audit: appendAuditLog,
       agent: args.name,
     });
+    tools.verifyBaseline = createVerifyBaselineTool({
+      cwd: args.cwd,
+      audit: appendAuditLog,
+      agent: args.name,
+    });
+  }
+
+  if (args.name === "fixer") {
+    tools.submitVerificationTest = createSubmitVerificationTestTool({
+      cwd: args.cwd,
+      audit: appendAuditLog,
+      agent: args.name,
+    });
+    tools.generateFirewallPolicy = createGenerateFirewallPolicyTool({
+      cwd: args.cwd,
+      audit: appendAuditLog,
+      agent: args.name,
+    });
   }
 
   const agentName = args.name.toUpperCase();
@@ -191,68 +179,42 @@ async function runSubAgent(args: {
 
     let fullText = "";
     for await (const chunk of result.fullStream) {
-      if (chunk.type === "text-delta") {
-        fullText += chunk.textDelta;
-      } else if (chunk.type === "tool-call") {
-        ui.updateSpinner(`[${agentName}] Running tool: ${chalk.bold.yellow(chunk.toolName)}...`);
-      } else if (chunk.type === "tool-result") {
-        ui.updateSpinner(`[${agentName}] Tool ${chunk.toolName} complete. Thinking...`);
-      }
+      if (chunk.type === "text-delta") fullText += chunk.textDelta;
+      else if (chunk.type === "tool-call") ui.updateSpinner(`[${agentName}] Running tool: ${chalk.bold.yellow(chunk.toolName)}...`);
+      else if (chunk.type === "tool-result") ui.updateSpinner(`[${agentName}] Tool ${chunk.toolName} complete. Thinking...`);
     }
 
     ui.stopSpinner(true, `[${agentName}] Task complete.`);
-    
     const usage = await result.usage;
     const finishReason = await result.finishReason;
 
     appendAuditLog(args.cwd, {
       kind: "ai",
       agent: args.name,
-      payload: {
-        text: fullText,
-        finishReason,
-        usage,
-      },
+      payload: { text: fullText, finishReason, usage },
     });
 
-    return { 
-      text: `### [${agentName}] Task Report\n${fullText}`, 
-      usage 
-    };
+    return { text: `### [${agentName}] Task Report\n${fullText}`, usage };
   } catch (err) {
     ui.stopSpinner(false, `[${agentName}] Execution failed.`);
     throw err;
   }
 }
 
-/**
- * Central engine: orchestrates the multi-agent loop, plan/confirm gate, and audit logging.
- */
 export class AgentManager {
   private messages: CoreMessage[] = [{ role: "system", content: ORCHESTRATOR_SYSTEM }];
   private totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
-
   constructor(private readonly cwd: string) {}
-
-  public getMessages() {
-    return this.messages;
-  }
-
-  public getUsage() {
-    return this.totalUsage;
-  }
+  public getMessages() { return this.messages; }
+  public getUsage() { return this.totalUsage; }
 
   async run(userGoal: string): Promise<void> {
     this.messages.push({ role: "user", content: userGoal });
-    
-    // We pass the persistent state to the session runner
     const result = await runOrchestratorSession({ 
       cwd: this.cwd, 
       messages: this.messages,
       totalUsage: this.totalUsage 
     });
-    
-    // Update local usage tracking
     if (result.usage) {
       this.totalUsage.promptTokens += result.usage.promptTokens;
       this.totalUsage.completionTokens += result.usage.completionTokens;
@@ -261,9 +223,7 @@ export class AgentManager {
   }
 }
 
-export interface SessionResult {
-  usage: { promptTokens: number; completionTokens: number; totalTokens: number };
-}
+export interface SessionResult { usage: { promptTokens: number; completionTokens: number; totalTokens: number }; }
 
 export async function runOrchestratorSession(args: {
   cwd: string;
@@ -274,357 +234,90 @@ export async function runOrchestratorSession(args: {
   const userGoal = (messages.filter(m => m.role === "user").pop()?.content as string) || "";
 
   const strictMode = process.env.SINTENEL_STRICT_MODE !== "false";
-  const highAssuranceApproval =
-    strictMode || process.env.SINTENEL_HIGH_ASSURANCE_APPROVAL === "true";
-  const destructiveOpsEnabled =
-    !strictMode && process.env.SINTENEL_ALLOW_DESTRUCTIVE_OPS === "true";
+  const highAssuranceApproval = strictMode || process.env.SINTENEL_HIGH_ASSURANCE_APPROVAL === "true";
+  const destructiveOpsEnabled = !strictMode && process.env.SINTENEL_ALLOW_DESTRUCTIVE_OPS === "true";
 
   appendAuditLog(cwd, {
     kind: "system",
-    payload: {
-      event: "session_start",
-      goal: userGoal,
-      strictMode,
-      highAssuranceApproval,
-      destructiveOpsEnabled,
-    },
+    payload: { event: "session_start", goal: userGoal, strictMode, highAssuranceApproval, destructiveOpsEnabled },
   });
 
   let planApproved = false;
   let approvedCommands = new Set<string>();
-  let planRequestAttempts = 0;
   const maxExecutionsPerCommand = Number(process.env.SINTENEL_MAX_EXECUTIONS_PER_COMMAND ?? "3");
   const commandExecutionCount = new Map<string, number>();
   const maxSessionTurns = Number(process.env.SINTENEL_MAX_SESSION_TURNS ?? "18");
 
   const executionAllowed = () => planApproved;
-  const isCommandApproved = (command: string) =>
-    approvedCommands.has(normalizeCommand(command));
-  const canExecuteCommandNow = (command: string) =>
-    (commandExecutionCount.get(normalizeCommand(command)) ?? 0) < maxExecutionsPerCommand;
+  const isCommandApproved = (command: string) => approvedCommands.has(normalizeCommand(command));
+  const canExecuteCommandNow = (command: string) => (commandExecutionCount.get(normalizeCommand(command)) ?? 0) < maxExecutionsPerCommand;
   const onCommandExecuted = (command: string) => {
     const key = normalizeCommand(command);
     commandExecutionCount.set(key, (commandExecutionCount.get(key) ?? 0) + 1);
   };
   const allowDestructiveOps = () => destructiveOpsEnabled;
 
-  const delegateSchema = z.object({
-    task: z.string().min(1).describe("Task for sub-agent"),
-  });
+  const delegateSchema = z.object({ task: z.string().min(1).describe("Task for sub-agent") });
 
   const tools = {
-    submitExecutionPlan: createSubmitExecutionPlanTool({
-      cwd,
-      audit: appendAuditLog,
-      agent: "orchestrator",
-    }),
-    executePowerShell: createExecutePowerShellTool({
-      cwd,
-      audit: appendAuditLog,
-      agent: "orchestrator",
-      executionAllowed,
-      isCommandApproved,
-      canExecuteCommandNow,
-      onCommandExecuted,
-    }),
-    fileOperator: createFileOperatorTool({
-      cwd,
-      audit: appendAuditLog,
-      agent: "orchestrator",
-      writeAllowed: executionAllowed,
-      allowDestructiveOps,
-    }),
+    submitExecutionPlan: createSubmitExecutionPlanTool({ cwd, audit: appendAuditLog, agent: "orchestrator" }),
+    executePowerShell: createExecutePowerShellTool({ cwd, audit: appendAuditLog, agent: "orchestrator", executionAllowed, isCommandApproved, canExecuteCommandNow, onCommandExecuted }),
+    fileOperator: createFileOperatorTool({ cwd, audit: appendAuditLog, agent: "orchestrator", writeAllowed: executionAllowed, allowDestructiveOps }),
     delegateToScout: tool({
-      description: "Delegate recon to Scout (read-only: listings, files, netstat).",
+      description: "Delegate recon to Scout.",
       parameters: delegateSchema,
       execute: async ({ task }) => {
-        appendAuditLog(cwd, {
-          kind: "tool",
-          agent: "orchestrator",
-          payload: { tool: "delegateToScout", task },
-        });
-        if (!executionAllowed()) {
-          return {
-            ok: false as const,
-            error: "Delegation blocked. Submit plan first.",
-          };
-        }
-        const { text } = await runSubAgent({
-          name: "scout",
-          task,
-          cwd,
-          executionAllowed,
-          isCommandApproved,
-          canExecuteCommandNow,
-          onCommandExecuted,
-          allowDestructiveOps: () => false,
-        });
+        if (!executionAllowed()) return { ok: false as const, error: "Plan required." };
+        const { text } = await runSubAgent({ name: "scout", task, cwd, executionAllowed, isCommandApproved, canExecuteCommandNow, onCommandExecuted, allowDestructiveOps: () => false });
         return { ok: true as const, report: text };
-      },
+      }
     }),
     delegateToFixer: tool({
-      description: "Delegate patching to Fixer (writes, runs verification).",
+      description: "Delegate patching to Fixer.",
       parameters: delegateSchema,
       execute: async ({ task }) => {
-        appendAuditLog(cwd, {
-          kind: "tool",
-          agent: "orchestrator",
-          payload: { tool: "delegateToFixer", task },
-        });
-        if (!executionAllowed()) {
-          return {
-            ok: false as const,
-            error: "Delegation blocked. Submit plan first.",
-          };
-        }
-        const { text } = await runSubAgent({
-          name: "fixer",
-          task,
-          cwd,
-          executionAllowed,
-          isCommandApproved,
-          canExecuteCommandNow,
-          onCommandExecuted,
-          allowDestructiveOps,
-        });
+        if (!executionAllowed()) return { ok: false as const, error: "Plan required." };
+        const { text } = await runSubAgent({ name: "fixer", task, cwd, executionAllowed, isCommandApproved, canExecuteCommandNow, onCommandExecuted, allowDestructiveOps });
         return { ok: true as const, report: text };
-      },
+      }
     }),
   };
 
-  // Plan & confirm loop: allow another model turn after Y to run tools and delegates.
   let turnCount = 0;
-  const MAX_CONTEXT_MESSAGES = 15; // Prune context after this many messages
-  
   for (;;) {
     turnCount++;
-    if (turnCount > maxSessionTurns) {
-      ui.printError(`Session exceeded max turns (${maxSessionTurns}). Aborting safely.`);
-      appendAuditLog(cwd, {
-        kind: "system",
-        payload: { event: "session_end", reason: "max_turns_exceeded", turnCount, maxSessionTurns },
-      });
-      return { usage: totalUsage };
-    }
-    
-    // Prune context to reduce token usage on long sessions
-    const messagesToSend = turnCount > 2 ? pruneMessages(messages, MAX_CONTEXT_MESSAGES) : messages;
-    
-    // START STREAMING
+    if (turnCount > maxSessionTurns) return { usage: totalUsage };
+    const messagesToSend = turnCount > 2 ? pruneMessages(messages, 15) : messages;
     ui.printAgentHeader('Orchestrator');
-    
-    const result = await streamText({
-      model: getModel(),
-      messages: messagesToSend,
-      tools,
-      maxSteps: 25,
-      maxTokens: MAX_OUTPUT_TOKENS,
-      temperature: 0.4,
-    });
-
+    const result = await streamText({ model: getModel(), messages: messagesToSend, tools, maxSteps: 25, maxTokens: MAX_OUTPUT_TOKENS, temperature: 0.4 });
     let turnResponseText = '';
-    let blockResponseText = '';
-    let hasStreamedText = false;
-
     for await (const chunk of result.fullStream) {
       if (chunk.type === 'text-delta') {
         turnResponseText += chunk.textDelta;
-        blockResponseText += chunk.textDelta;
         ui.printStreamChunk(chunk.textDelta);
-        hasStreamedText = true;
-      } else if (chunk.type === 'tool-call') {
-        if (hasStreamedText) {
-          ui.endStream();
-          ui.finalizeMarkdown(blockResponseText);
-          blockResponseText = '';
-          hasStreamedText = false;
-        }
-        ui.printInfo(`Agent requesting tool: ${chalk.bold.yellow(chunk.toolName)}...`);
-      } else if (chunk.type === 'tool-result') {
-        ui.printSuccess(`Tool ${chalk.bold.yellow(chunk.toolName)} executed successfully.`);
       }
     }
-    
-    if (hasStreamedText) {
-      ui.finalizeMarkdown(blockResponseText);
-    }
-
-    // Finalize message history
     const response = await result.response;
-    for (const msg of response.messages) {
-      messages.push(msg);
-    }
-
-    // Track cumulative usage
+    for (const msg of response.messages) messages.push(msg);
     const usage = await result.usage;
     if (usage) {
-      totalUsage.promptTokens += usage.promptTokens || 0;
-      totalUsage.completionTokens += usage.completionTokens || 0;
-      totalUsage.totalTokens += usage.totalTokens || 0;
+      totalUsage.promptTokens += usage.promptTokens;
+      totalUsage.completionTokens += usage.completionTokens;
+      totalUsage.totalTokens += usage.totalTokens;
     }
-
-    const finishReason = await result.finishReason;
-    appendAuditLog(cwd, {
-      kind: "ai",
-      agent: "orchestrator",
-      payload: {
-        text: turnResponseText,
-        finishReason,
-        usage,
-        cumulativeUsage: totalUsage,
-      },
-    });
-
-    // Early stopping if agent is stuck
-    if (planApproved && isAgentStuck(messages)) {
-      console.log("\n[Warning] Agent appears stuck in loop. Terminating to save costs.");
-      appendAuditLog(cwd, {
-        kind: "system",
-        payload: { event: "session_end", reason: "stuck_detected", totalUsage },
-      });
-        return { usage: totalUsage };
-      }
-
-    // Await steps for plan extraction
     const steps = await result.steps;
     const pendingPlan = !planApproved ? extractExecutionPlan({ steps }) : null;
-
     if (pendingPlan) {
-      planRequestAttempts = 0;
-      const policyViolations = pendingPlan.commands
-        .map((entry) => ({
-          command: entry.command,
-          decision: evaluateCommandPolicy(entry.command),
-        }))
-        .filter(
-          (
-            x
-          ): x is {
-            command: string;
-            decision: { allowed: false; reason: string };
-          } => !x.decision.allowed
-        );
-      if (policyViolations.length > 0) {
-        appendAuditLog(cwd, {
-          kind: "system",
-          payload: {
-            event: "plan_policy_rejected",
-            violations: policyViolations.map((v) => ({
-              command: v.command,
-              reason: v.decision.reason,
-            })),
-          },
-        });
-        messages.push({
-          role: "user",
-          content: `Execution plan rejected by command policy. Violations:\n${policyViolations
-            .map((v) => `- ${v.command}: ${v.decision.reason}`)
-            .join("\n")}\nProvide a revised plan with policy-compliant commands only.`,
-        });
-        continue;
-      }
-      const rows: PlanRow[] = pendingPlan.commands.map((c) => ({
-        kind: c.kind,
-        purpose: c.purpose,
-        command: c.command,
-      }));
+      const rows: PlanRow[] = pendingPlan.commands.map(c => ({ kind: c.kind, purpose: c.purpose, command: c.command }));
       printPlanTable(pendingPlan, rows);
-
-      const ok = await confirmYesNo("Execute planned shell commands and continue? [Y/N]: ");
-      const challengeOk = highAssuranceApproval ? await confirmApprovalChallenge() : true;
-      appendAuditLog(cwd, {
-        kind: "system",
-        payload: {
-          event: "plan_confirmation",
-          approved: ok,
-          challengeApproved: challengeOk,
-          highAssuranceApproval,
-        },
-      });
-
-      if (!ok || !challengeOk) {
-        ui.printError("Session aborted by operator.");
-        appendAuditLog(cwd, {
-          kind: "system",
-          payload: { event: "session_end", reason: "plan_rejected" },
-        });
-        return { usage: totalUsage };
-      }
-
+      const ok = await confirmYesNo("Execute plan? [Y/N]: ");
+      if (!ok) return { usage: totalUsage };
       planApproved = true;
-      approvedCommands = new Set(
-        pendingPlan.commands.map((entry) => normalizeCommand(entry.command))
-      );
-      commandExecutionCount.clear();
-      for (const entry of pendingPlan.commands) {
-        commandExecutionCount.set(normalizeCommand(entry.command), 0);
-      }
-      messages.push({
-        role: "user",
-        content:
-          "Operator replied Y: you may execute approved PowerShell commands, call delegateToScout / delegateToFixer as needed, and complete the goal.",
-      });
+      approvedCommands = new Set(pendingPlan.commands.map(e => normalizeCommand(e.command)));
+      messages.push({ role: "user", content: "Operator approved Y." });
       continue;
     }
-
-    if (!planApproved) {
-      const toolCalls = steps.flatMap(s => s.toolCalls);
-      // If the agent made any tool call that ISN'T submitExecutionPlan, it's a policy breach or we need a plan.
-      const hasActionableCalls = toolCalls.some(tc => tc.toolName !== 'submitExecutionPlan');
-      
-      if (hasActionableCalls) {
-        messages.push({
-          role: "user",
-          content: "Before any action or delegation, you MUST call submitExecutionPlan with the required context.",
-        });
-        continue;
-      }
-      
-      // If the agent just gave text and NO tools at all, it's answering a question. Let it stop.
-      if (toolCalls.length === 0 && turnResponseText) {
-        break;
-      }
-
-      // Otherwise, the agent might be stuck or forgot to plan for a goal
-      planRequestAttempts += 1;
-      if (planRequestAttempts >= 3) {
-        console.log(
-          "Unable to get a valid execution plan with context after multiple attempts. Session aborted."
-        );
-        appendAuditLog(cwd, {
-          kind: "system",
-          payload: { event: "session_end", reason: "missing_plan_context" },
-        });
-        return { usage: totalUsage };
-      }
-      messages.push({
-        role: "user",
-        content:
-          "Before any command or delegation, call submitExecutionPlan with context { objective, scope, risks, rollbackPlan } and complete command list.",
-      });
-      continue;
-    }
-
-    const finalFinishReason = await result.finishReason;
-    if (finalFinishReason !== "stop") {
-      appendAuditLog(cwd, {
-        kind: "system",
-        payload: { event: "non_stop_finish", finishReason: finalFinishReason },
-      });
-    }
-    
-    // Log final usage summary
-    ui.printHeader('SESSION COMPLETE');
-    ui.printUsageStats(totalUsage);
-    
-    // Estimate cost (assumes Gemini pricing)
-    const inputCost = (totalUsage.promptTokens / 1_000_000) * 0.075;
-    const outputCost = (totalUsage.completionTokens / 1_000_000) * 0.30;
-    const estimatedCost = inputCost + outputCost;
-    ui.printCostEstimate(totalUsage.totalTokens, estimatedCost);
-    
-    break;
+    if (turnResponseText && (await result.finishReason) === "stop") break;
   }
-
   return { usage: totalUsage };
 }
