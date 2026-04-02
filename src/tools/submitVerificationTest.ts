@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { tool } from "ai";
 import { writeFileSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import type { appendAuditLog } from "../utils/audit.js";
 
 export const verificationTestInputSchema = z.object({

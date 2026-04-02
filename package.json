@@ -21,7 +21,8 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "benchmark": "node scripts/benchmark.js",
-    "analyze-costs": "node scripts/analyze-costs.js"
+    "analyze-costs": "node scripts/analyze-costs.js",
+    "generate-report": "node scripts/generate-report.js"
   },
   "keywords": [
     "security",

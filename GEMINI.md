@@ -38,14 +38,20 @@ Activated when a goal starts with "Forensic Question" or asks for specific metad
     - **Evidence:** Supporting logs, timestamps, or metadata.
 
 ## Development Workflows
-
 ### Deep Recon Strategy (Mandatory)
-Agents MUST prioritize the pre-written security audit scripts for initial system assessment:
-- **Linux:** Run `bash scripts/security/audit_linux.sh`
-- **Windows:** Run `powershell -ExecutionPolicy Bypass -File scripts/security/audit_windows.ps1`
-- **Goal:** Use the output of these scripts to build a comprehensive "Security Map" before proposing any fixes.
+Agents MUST prioritize the pre-written security audit and forensic scripts for initial system assessment:
+- **Phase 0 (Master Audit):** Run `scripts/security/audit_linux.sh` or `audit_windows.ps1`.
+- **Phase 1 (Forensic Deep Dive):** For forensic goals, run `scripts/security/collect_forensics.sh` or `collect_forensics.ps1` BEFORE any modifications.
+- **Goal:** Use these to build a comprehensive "Security Map" and solve forensic challenges early.
+
+### Top-Tier Hardening Tools
+- **README Extraction:** Use `extractReadme` to define the "Authorized State" (users, services, ports).
+- **Baseline Verification:** Use `verifyBaseline` to find anomalies (unauthorized users/SUIDs) compared to clean OS manifests (`ubuntu_2204`, `windows_10`).
+- **Firewall Whitelisting:** Use `generateFirewallPolicy` to create strict Netsh/UFW rules based on README authorized ports.
 
 ### Parallel Execution Strategy
+...
+
 Agents should leverage the system's ability to execute tool calls in parallel:
 - **Multi-Terminal Recon:** Scout should run multiple independent `executeShell` calls in a single turn to gather data faster.
 - **Batch Remediation:** Fixer should apply independent patches and their verification checks simultaneously.

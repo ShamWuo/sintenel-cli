@@ -1,6 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, renameSync, statSync, lstatSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, renameSync, statSync, readdirSync } from "node:fs";
 import { dirname, isAbsolute, join, basename } from "node:path";
-import { createHash } from "node:crypto";
 import { z } from "zod";
 import { tool } from "ai";
 import type { appendAuditLog } from "../utils/audit.js";
@@ -23,10 +22,6 @@ function isBinaryFile(content: Buffer): boolean {
   return false;
 }
 
-function findLineNumber(content: string, charIndex: number): number {
-  return content.slice(0, charIndex).split(/\r?\n/).length;
-}
-
 function replaceFirst(source: string, target: string, replacement: string): string {
   const idx = source.indexOf(target);
   if (idx === -1) return source;
@@ -37,10 +32,6 @@ function maybeWriteBackup(absPath: string, content: string): string {
   const backupPath = `${absPath}.bak.${Date.now()}`;
   writeFileSync(backupPath, content, "utf8");
   return backupPath;
-}
-
-function sha256Hex(content: string): string {
-  return createHash("sha256").update(content, "utf8").digest("hex");
 }
 
 export const fileOperatorInputSchema = z.discriminatedUnion("action", [
