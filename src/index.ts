@@ -171,7 +171,8 @@ program
     for (const err of result.errors) {
       console.error(chalk.red(`- ${err}`));
     }
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   });
 
 program
@@ -207,7 +208,8 @@ program
     const result = verifyAuditBundle(resolve(bundlePath), key);
     if (!result.ok) {
       ui.printError(`Bundle verification failed: ${result.error}`);
-      process.exit(2);
+      process.exitCode = 2;
+      return;
     }
     ui.printSuccess("Bundle verification: OK");
     console.log(chalk.dim(`Audit path: ${result.bundle.auditLogPath}`));
@@ -215,3 +217,4 @@ program
   });
 
 await program.parseAsync(process.argv);
+
