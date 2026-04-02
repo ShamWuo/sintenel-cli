@@ -1,6 +1,11 @@
 import { createRequire } from "node:module";
-const require = createRequire(import.meta.url);
-const keytar = require("keytar");
+
+// Polyfill require to work in both ESM (tsx) and CJS (bundle)
+const _require = typeof require !== "undefined" 
+  ? require 
+  : createRequire(import.meta.url);
+
+const keytar = _require("keytar");
 
 const SERVICE_NAME = "sintenel-cli";
 const ACCOUNT_NAME = "google-ai-api-key";
