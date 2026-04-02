@@ -223,35 +223,48 @@ export async function runOrchestratorSession(args: {
 
   for (let turn = 1; turn <= maxSessionTurns; turn++) {
     ui.printAgentHeader('Orchestrator');
-    ui.startSpinner('Orchestrator is initiating thinking...');
+    ui.startSpinner('Connecting to Gemini...');
 
-    const result = await streamText({ 
-      model: getModel(), 
-      messages: turn > 2 ? pruneMessages(messages, 15) : messages, 
-      tools, 
-      maxSteps: 1 
-    });
+    try {
+      const result = await streamText({ 
+        model: getModel(), 
+        messages: turn > 2 ? pruneMessages(messages, 15) : messages, 
+        tools, 
+        maxSteps: 1 
+      });
 
-    ui.updateSpinner('Thinking... (Streaming thoughts)');
-    let turnText = "";
-    for await (const chunk of result.fullStream) {
-      if (chunk.type === "text-delta") { 
-        if (turnText === "") ui.stopSpinner(true, 'Response incoming:');
-        turnText += chunk.textDelta; 
-        ui.printStreamChunk(chunk.textDelta); 
+      ui.updateSpinner('Thinking...');
+      let turnText = "";
+
+      // Robuster stream consumption
+      const fullStream = result.fullStream;
+      if (!fullStream) {
+        ui.stopSpinner(false, "Connection failed: No stream returned.");
+        break;
       }
-      else if (chunk.type === "tool-call") {
-        ui.stopSpinner(true, `Calling tool: ${chalk.bold.yellow(chunk.toolName)}...`);
-      }
-    }
-    
-    ui.clearSpinner();
-    const response = await result.response;
-    for (const msg of response.messages) messages.push(msg);
-    const usage = await result.usage;
-    if (usage) { totalUsage.promptTokens += usage.promptTokens; totalUsage.completionTokens += usage.completionTokens; totalUsage.totalTokens += usage.totalTokens; }
 
-    const steps = await result.steps;
+      for await (const chunk of fullStream) {
+        if (chunk.type === "text-delta") { 
+          if (turnText === "") ui.stopSpinner(true, 'Response incoming:');
+          turnText += chunk.textDelta; 
+          ui.printStreamChunk(chunk.textDelta); 
+        }
+        else if (chunk.type === "tool-call") {
+          ui.stopSpinner(true, `Calling tool: ${chalk.bold.yellow(chunk.toolName)}...`);
+        }
+      }
+      
+      ui.clearSpinner();
+      const response = await result.response;
+      for (const msg of response.messages) messages.push(msg);
+      const usage = await result.usage;
+      if (usage) { 
+        totalUsage.promptTokens += usage.promptTokens; 
+        totalUsage.completionTokens += usage.completionTokens; 
+        totalUsage.totalTokens += usage.totalTokens; 
+      }
+
+      const steps = await result.steps;
     const plan = !planApproved ? extractExecutionPlan({ steps }) : null;
 
     if (plan) {
@@ -287,6 +300,10 @@ export async function runOrchestratorSession(args: {
          // If it's the very first turn and it's just text, don't break yet!
       }
     }
+  } catch (err) {
+    ui.printError(`Session error: ${err}`);
+    break;
   }
-  return { usage: totalUsage };
+}
+return { usage: totalUsage };
 }
