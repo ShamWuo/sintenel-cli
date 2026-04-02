@@ -22,8 +22,8 @@ import { createVerifyBaselineTool } from "../tools/verifyBaseline.js";
 import { createGenerateFirewallPolicyTool } from "../tools/generateFirewallPolicy.js";
 import { createDiffAuditStateTool } from "../tools/diffAuditState.js";
 
-const DEFAULT_MODEL = "gemini-1.5-flash-latest"; // Fallback to ultra-stable ID
-const DEFAULT_SUBAGENT_MODEL = "gemini-1.5-flash-latest"; 
+const DEFAULT_MODEL = "gemini-3.1-flash-lite-preview"; 
+const DEFAULT_SUBAGENT_MODEL = "gemini-3.1-flash-lite-preview"; 
 const MAX_OUTPUT_TOKENS_SUBAGENT = 2048;
 
 function getModel(options?: { subagent?: boolean }) {
@@ -182,6 +182,7 @@ export async function runOrchestratorSession(args: {
   messages: CoreMessage[];
   totalUsage: { promptTokens: number; completionTokens: number; totalTokens: number };
 }): Promise<{ usage: any }> {
+  console.log("◈ [DEBUG] Internal: Orchestration session logic entered.");
   const { cwd, messages, totalUsage } = args;
   const maxSessionTurns = Number(process.env.SINTENEL_MAX_SESSION_TURNS || "18");
 

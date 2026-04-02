@@ -1,5 +1,4 @@
 import chalk from 'chalk';
-import ora, { type Ora } from 'ora';
 import cliProgress from 'cli-progress';
 import Table from 'cli-table3';
 import { marked } from 'marked';
@@ -28,39 +27,26 @@ marked.setOptions({
 });
 
 export class UIManager {
-  private spinner: Ora | null = null;
   private progressBar: cliProgress.SingleBar | null = null;
 
   startSpinner(text: string): void {
-    this.spinner = ora({
-      text: chalk.blue(text),
-      color: 'blue',
-      spinner: 'dots',
-    }).start();
+    console.log(chalk.blue(`◈ [STATUS] ${text}`));
   }
 
   updateSpinner(text: string): void {
-    if (this.spinner) {
-      this.spinner.text = chalk.blue(text);
-    }
+    console.log(chalk.blue(`◈ [UPDATE] ${text}`));
   }
 
   stopSpinner(success: boolean, text?: string): void {
-    if (!this.spinner) return;
-    
     if (success) {
-      this.spinner.succeed(chalk.green(text || this.spinner.text));
+      console.log(chalk.green(`◈ [DONE] ${text || "Process completed."}`));
     } else {
-      this.spinner.fail(chalk.red(text || this.spinner.text));
+      console.log(chalk.red(`◈ [FAIL] ${text || "Process failed."}`));
     }
-    this.spinner = null;
   }
 
   clearSpinner(): void {
-    if (this.spinner) {
-      this.spinner.stop();
-      this.spinner = null;
-    }
+    // No-op for console logging
   }
 
   createProgressBar(total: number, label: string = 'Progress'): void {
