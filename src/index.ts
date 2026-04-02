@@ -1,8 +1,9 @@
-#!/usr/bin/env node
 import "dotenv/config";
 import { Command } from "commander";
 import { basename, dirname, join, resolve } from "node:path";
 import { AgentManager } from "./engine/agentManager.js";
+import { getApiKey, saveApiKey, deleteApiKey } from "./utils/secrets.js";
+
 import {
   auditLogPathForCwd,
   exportAuditBundle,
@@ -12,6 +13,7 @@ import {
 
 import inquirer from "inquirer";
 import chalk from "chalk";
+import { confirmYesNo } from "./utils/confirm.js";
 import { ui } from "./utils/ui.js";
 
 const program = new Command();
@@ -134,9 +136,14 @@ program
     const userGoal = goalParts.join(" ").trim();
 
     if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim()) {
-      ui.printError("Missing GOOGLE_GENERATIVE_AI_API_KEY.");
-      console.log(chalk.dim("Please set it in your .env file. Use .env.example as a template."));
-      process.exit(1);
+      const storedKey = await getApiKey();
+      if (storedKey) {
+        process.env.GOOGLE_GENERATIVE_AI_API_KEY = storedKey;
+      } else {
+        ui.printError("Missing GOOGLE_GENERATIVE_AI_API_KEY.");
+        console.log(chalk.dim("Please set it in your .env file or run " + chalk.yellow("sintenel setup") + " to store it securely."));
+        process.exit(1);
+      }
     }
 
     if (!userGoal) {
@@ -216,5 +223,47 @@ program
     console.log(chalk.dim(`Terminal hash: ${result.bundle.terminalHash ?? "(none)"}`));
   });
 
-await program.parseAsync(process.argv);
+program
+  .command("setup")
+  .description("Securely save your Google AI API key to the OS credential manager")
+  .action(async () => {
+    ui.printHeader("SINTENEL SETUP");
+    const { key } = await inquirer.prompt([
+      {
+        type: "password",
+        name: "key",
+        message: "Enter your Google AI API Key:",
+        mask: "*"
+      }
+    ]);
+
+    if (!key?.trim()) {
+      ui.printError("Key cannot be empty.");
+      process.exit(1);
+    }
+
+    try {
+      await saveApiKey(key.trim());
+      ui.printSuccess("API key securely stored in your OS credential manager.");
+      console.log(chalk.dim("You can now safely delete the key from your .env file."));
+    } catch (err) {
+      ui.printError(`Failed to save key: ${err}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("logout")
+  .description("Remove your securely stored API key")
+  .action(async () => {
+    if (await confirmYesNo("Are you sure you want to remove the stored API key?")) {
+      await deleteApiKey();
+      ui.printSuccess("API key removed from OS credential manager.");
+    }
+  });
+
+program.parseAsync(process.argv).catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
 

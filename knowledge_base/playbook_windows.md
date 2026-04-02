@@ -62,9 +62,14 @@ This is the definitive, Nationals-level Order of Operations for securing a Windo
 - [ ] **WMI Event Consumers**: Attackers use WMI to run scripts completely fileless.
   - Run PowerShell as Admin: `Get-WmiObject -Namespace root\subscription -Class __EventFilter` and `Get-WmiObject -Namespace root\subscription -Class CommandLineEventConsumer`. Delete malicious bindings.
 - [ ] **Registry Run Keys**: Check `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run` and `RunOnce` (and HKCU).
+- [ ] **Logon Scripts**: 
+  - Audit `HKCU:\Environment\UserInitMprLogonScript`. Should be empty.
+  - Audit `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\Userinit`. Standard is `C:\Windows\system32\userinit.exe,`.
 - [ ] **Services**: `Get-Service | Where Status -eq 'Running'`. Look for unsigned binaries or strange paths in `services.msc`.
+- [ ] **Unquoted Service Paths**: `gwmi win32_service | Where-Object { $_.PathName -notlike '"*' -and $_.PathName -like '* *' }`. Fix by adding quotes to the image path.
 - [ ] **Image File Execution Options (IFEO)**: `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options`. Ensure `sethc.exe` or `utilman.exe` aren't mapped to `cmd.exe`.
 - [ ] **AppInit_DLLs**: `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows\AppInit_DLLs`. Should be empty.
+- [ ] **Hidden Users**: Audit `Get-LocalUser` for accounts with `$` suffix. Check Welcome Screen registry: `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\SpecialAccounts\UserList`.
 - [ ] **Startup Folder**: `shell:startup` and `shell:common startup`.
 
 ## 6. NETWORK & FIREWALL

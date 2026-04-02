@@ -13,28 +13,52 @@
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Quick Start (CyberPatriot Mode)
 
-### 1. Installation
+### 1. Standalone Execution (No `npm install` Required)
+Sintenel-CLI is pre-bundled for high-speed deployment in competition environments.
 
+**Windows:**
+1. Download the `dist` folder and `sintenel.cmd`.
+2. Run: `.\sintenel.cmd "Your objective here"`
+
+**Linux:**
+1. Download the `dist` folder and `sintenel` wrapper.
+2. Run: `chmod +x ./sintenel && ./sintenel "Your objective here"`
+
+### 2. Development Setup (Optional)
+If you wish to modify the source:
 ```bash
 git clone https://github.com/ShamWuo/sintenel-cli.git
 cd sintenel-cli
 npm install
+npm run bundle  # Generates the standalone dist/sintenel.cjs
 ```
 
-### 2. Configuration
-Create a `.env` file with your Google Gemini API key:
-```env
-GOOGLE_GENERATIVE_AI_API_KEY=your_key_here
-```
+### 3. Secure Setup (Recommended)
+Instead of hardcoding your API key in a `.env` file, you can now store it securely in your OS credential manager.
 
-### 3. Launch Interactive Mode
 ```bash
-npm run dev
+.\sintenel.cmd setup
+```
+Follow the prompts to enter your key. Once stored, you can safely delete the `.env` file. To remove the key, use:
+```bash
+.\sintenel.cmd logout
 ```
 
----
+### 4. Entering Interactive Mode
+To launch the full AI streaming REPL with interactive planning and execution:
+
+```bash
+.\sintenel.cmd
+```
+*Leave the goal empty to enter the interactive workspace.*
+
+### 5. Quick Direct Goal (One-off)
+To run a specific task instantly:
+```bash
+.\sintenel.cmd "Audit all authorized users and compare against README.md"
+```
 
 ## 🛠 Operational Modes
 
