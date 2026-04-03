@@ -1,20 +1,29 @@
 export type CommandPolicyDecision =
   | { allowed: true }
   | { allowed: false; reason: string };
-
 const ALLOWLIST: RegExp[] = [
-  // Recon/read-only
-  /^\s*Get-ChildItem\b/i,
-  /^\s*dir\b/i,
-  /^\s*ls\b/i,
-  /^\s*Get-Content\b/i,
-  /^\s*cat\b/i,
-  /^\s*type\b/i,
-  /^\s*Select-String\b/i,
-  /^\s*netstat\b/i,
-  /^\s*ipconfig\b/i,
-  /^\s*whoami\b/i,
-  /^\s*where\b/i,
+  // Recon/read-only (Windows & Core)
+  /^\s*Get-(ChildItem|Content|Item|ItemProperty|Service|Process|LocalUser|LocalGroup|LocalGroupMember|ScheduledTask|WmiObject|CimInstance)\b/i,
+  /^\s*(dir|ls|cat|type|Select-String|findstr|grep|find)\b/i,
+  /^\s*(netstat|ipconfig|whoami|where|hostname|tasklist|systeminfo)\b/i,
+  /^\s*net\s+(user|localgroup|accounts|session|share|statistics)\b/i,
+  // Recon/read-only (Linux)
+  /^\s*(ps|top|htop|df|du|free|uptime|last|id|uname|ifconfig|ip|ss|nmcli)\b/i,
+  /^\s*(systemctl\s+list-units|ufw\s+status|iptables\s+-L)\b/i,
+  // Remediation/Config (Windows)
+  /^\s*(Disable|Enable|Set)-LocalUser\b/i,
+  /^\s*(Stop|Start|Restart|Set)-Service\b/i,
+  /^\s*Set-(SmbServerConfiguration|ItemProperty|ExecutionPolicy)\b/i,
+  /^\s*Remove-LocalGroupMember\b/i,
+  /^\s*netsh\s+advfirewall\b/i,
+  /^\s*sc\s+(config|start|stop|query)\b/i,
+  /^\s*attrib\b/i,
+  /^\s*takeown\b/i,
+  /^\s*icacls\b/i,
+  // Remediation/Config (Linux)
+  /^\s*(systemctl\s+(enable|disable|start|stop|restart)|ufw\s+(enable|disable|allow|deny|limit))\b/i,
+  /^\s*(chmod|chown|chgrp|passwd|useradd|userdel|usermod|groupadd|groupdel)\b/i,
+  /^\s*(apt|apt-get|yum|dnf)\s+(install|remove|update|upgrade)\b/i,
   // Dev verification workflows
   /^\s*npm\s+(run|test|audit|outdated|list)\b/i,
   /^\s*node\b/i,

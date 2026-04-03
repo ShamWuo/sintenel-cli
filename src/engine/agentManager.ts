@@ -22,8 +22,8 @@ import { createVerifyBaselineTool } from "../tools/verifyBaseline.js";
 import { createGenerateFirewallPolicyTool } from "../tools/generateFirewallPolicy.js";
 import { createDiffAuditStateTool } from "../tools/diffAuditState.js";
 
-const DEFAULT_MODEL = "gemini-1.5-flash"; 
-const DEFAULT_SUBAGENT_MODEL = "gemini-1.5-flash"; 
+const DEFAULT_MODEL = "gemini-2.5-flash"; 
+const DEFAULT_SUBAGENT_MODEL = "gemini-2.5-flash"; 
 const MAX_OUTPUT_TOKENS_SUBAGENT = 2048;
 
 function getModel(options?: { subagent?: boolean }) {
