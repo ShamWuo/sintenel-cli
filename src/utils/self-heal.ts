@@ -28,7 +28,7 @@ export async function selfHealSystem() {
                 "-NoProfile",
                 "-NonInteractive",
                 "-Command",
-                'Set-ItemProperty -Path "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System" -Name "DisableCMD" -Value 0 -ErrorAction SilentlyContinue'
+                "& { Set-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -Name 'DisableCMD' -Value 0 -ErrorAction SilentlyContinue }"
             ], { signal: AbortSignal.timeout(5000) });
             
             console.log(chalk.green("◈ [SYSTEM] Registry repair attempted."));
@@ -42,7 +42,7 @@ export async function selfHealSystem() {
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          'Set-ItemProperty -Path "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System" -Name "DisableRegistryTools" -Value 0 -ErrorAction SilentlyContinue'
+          "& { Set-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -Name 'DisableRegistryTools' -Value 0 -ErrorAction SilentlyContinue }"
       ], { signal: AbortSignal.timeout(5000) });
   } catch {}
 }

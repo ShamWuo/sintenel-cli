@@ -128,6 +128,11 @@ program
   });
 
 program.parseAsync(process.argv).catch((err) => {
-  console.error(chalk.red("◈ [FATAL ERROR]"), err);
+  console.error(chalk.red("\n◈ [FATAL ERROR] The application crashed unexpectedly."));
+  if (err instanceof Error) {
+    console.error(chalk.dim(err.stack || err.message));
+  } else {
+    console.error(chalk.dim(String(err)));
+  }
   process.exit(1);
 });
