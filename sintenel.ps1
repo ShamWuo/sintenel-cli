@@ -6,34 +6,55 @@ $bundlePath = Join-Path $scriptDir "dist\sintenel.cjs"
 
 # 1. 🛡️ GLOBAL SAFETY WRAPPER 
 try {
-    # 2. 🛡️ REGISTRY REPAIR (Disabled CMD Fix)
-    # Re-enable CMD so orchestrators can spawn sub-processes properly
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\System" -Name "DisableCMD" -Value 0 -ErrorAction SilentlyContinue 
+    # 2. Master Registry Repair (Defensive/Recursive)
+    Write-Host "ℹ Checking system policies..." -ForegroundColor Cyan
+    try {
+        # Check DisableCMD policy
+        $cmdDisabled = & reg query "HKCU\Software\Policies\Microsoft\Windows\System" /v DisableCMD 2>$null
+        if ($cmdDisabled -match "0x1" -or $cmdDisabled -match "0x2") {
+            Write-Host "⚠️ Policy detected (DisableCMD). Repairing..." -ForegroundColor Yellow
+            & reg add "HKCU\Software\Policies\Microsoft\Windows\System" /v DisableCMD /t REG_DWORD /d 0 /f | Out-Null
+        }
+    } catch {
+        Write-Host "⚠️ Registry access restricted. Attempting bypass..." -ForegroundColor Red
+    }
 } catch {
     # Fallback to reg.exe if Management module is broken
     & reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\System" /v "DisableCMD" /t REG_DWORD /d 0 /f 2>$null
 }
 
-# 3. 🛡️ NODE.JS DISCOVERY
-$nodePath = "node"
-try {
-    if (-not (Get-Command "node" -ErrorAction SilentlyContinue)) {
-        Write-Host "◈ [BOOTSTRAP] 'node' not in PATH. Searching common locations..." -ForegroundColor Cyan
-        $searchPaths = @(
-            "$env:ProgramFiles\nodejs\node.exe",
-            "$env:ProgramFiles(x86)\nodejs\node.exe",
-            "C:\Program Files\nodejs\node.exe",
-            "$env:SystemDrive\node\node.exe"
-        )
-        foreach ($path in $searchPaths) {
-            if (Test-Path $path) {
-                $nodePath = "`"$path`""
-                break
-            }
+# 3. Node.js Discovery (Robust Extraction)
+Write-Host "ℹ Finding Node.js runtime..." -ForegroundColor Cyan
+$nodePath = ""
+$possiblePaths = @(
+    "node", # In PATH
+    "$env:ProgramFiles\nodejs\node.exe",
+    "$env:ProgramFiles(x86)\nodejs\node.exe",
+    "C:\Program Files\nodejs\node.exe",
+    "C:\Program Files (x86)\nodejs\node.exe"
+)
+
+foreach ($path in $possiblePaths) {
+    if (Get-Command $path -ErrorAction SilentlyContinue) {
+        $nodePath = $path
+        break
+    }
+}
+
+# 4. 🔑 API KEY CHECK (Auto-Setup)
+Write-Host "ℹ Checking API Configuration..." -ForegroundColor Cyan
+if (Test-Path $bundlePath) {
+    # Check if key is already set via the node bundle
+    $hasKey = & $nodePath $bundlePath --help | Out-String
+    # We can also check .env.local directly for speed
+    if (-not (Test-Path (Join-Path $scriptDir ".env.local"))) {
+        $keyVal = [System.Environment]::GetEnvironmentVariable("GOOGLE_GENERATIVE_AI_API_KEY")
+        if (-not $keyVal) {
+            Write-Host "⚠️  GOOGLE_GENERATIVE_AI_API_KEY NOT FOUND" -ForegroundColor Yellow
+            Write-Host "◈ [ONBOARDING] Starting setup wizard..." -ForegroundColor Cyan
+            & $nodePath $bundlePath setup
         }
     }
-} catch {
-    # If Get-Command fails due to module issues, assume 'node' is in PATH or it'll fail at launch
 }
 
 # 4. 🛡️ AUTO-BUILD BUNDLE

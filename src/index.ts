@@ -15,6 +15,19 @@ async function startInteractiveREPL(cwd: string) {
   ui.printHeader("SINTENEL INTERACTIVE MODE");
   console.log(chalk.dim("Type your security goals or use /help for commands. Type 'exit' to quit.\n"));
 
+  const checkAuth = async () => {
+    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim()) {
+      const storedKey = await getApiKey();
+      if (storedKey) {
+        process.env.GOOGLE_GENERATIVE_AI_API_KEY = storedKey;
+      } else {
+        ui.printWarning("⚠️ API Key missing. Type '/auth' to set it up.");
+      }
+    }
+  };
+
+  await checkAuth();
+
   const askGoal = async () => {
     let combinedGoal = "";
     for (;;) {
@@ -46,8 +59,17 @@ async function startInteractiveREPL(cwd: string) {
       ui.printSection("Available Commands");
       console.log(chalk.cyan("  /clear") + "   - Clear terminal screen");
       console.log(chalk.cyan("  /reset") + "   - Reset conversation context");
+      console.log(chalk.cyan("  /auth") + "    - Setup API Key interactively");
       console.log(chalk.cyan("  /usage") + "   - Token usage");
       console.log(chalk.cyan("  exit") + "      - End session\n");
+      continue;
+    }
+
+    if (lowerGoal === "/auth" || lowerGoal === "auth") {
+      await runSetupWizard();
+      // Reload key into process.env
+      const key = await getApiKey();
+      if (key) process.env.GOOGLE_GENERATIVE_AI_API_KEY = key;
       continue;
     }
 
@@ -70,10 +92,33 @@ async function startInteractiveREPL(cwd: string) {
   }
 }
 
+async function runSetupWizard() {
+  ui.printSection("Sintenel API Setup");
+  const { key } = await inquirer.prompt([{
+    type: "password",
+    name: "key",
+    message: "Paste your Google Generative AI API Key:",
+    mask: "*",
+    validate: (input: string) => input.length > 5 || "Invalid key length."
+  }]);
+
+  await saveApiKey(key);
+  ui.printSuccess("API Key saved securely.");
+}
+
 program
   .name("sintenel")
   .description("AI-powered security orchestrator")
-  .version("0.1.0")
+  .version("0.1.0");
+
+program
+  .command("setup")
+  .description("Configure API keys interactively")
+  .action(async () => {
+    await runSetupWizard();
+  });
+
+program
   .argument("[goal...]", "High-level goal")
   .option("-d, --cwd <dir>", "Working directory")
   .action(async (goalParts: string[], opts: { cwd?: string }) => {
@@ -81,58 +126,29 @@ program
     const cwd = resolve(opts.cwd ?? process.cwd());
     const userGoal = goalParts.join(" ").trim();
 
-    // Debugging hint if the tool finishes too early
-    if (userGoal) {
-       ui.printInfo(`◈ [SESSION STARTING] Running goal: "${userGoal}"`);
-    }
-
-    // Key loading logic
-    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim()) {
-      const storedKey = await getApiKey();
-      if (storedKey) {
-        process.env.GOOGLE_GENERATIVE_AI_API_KEY = storedKey;
-      } else {
-        ui.printError("Missing API Key. Run 'node dist/sintenel.cjs setup' to save it.");
-        process.exit(1);
-      }
-    }
+    // Load key early
+    const storedKey = await getApiKey();
+    if (storedKey) process.env.GOOGLE_GENERATIVE_AI_API_KEY = storedKey;
 
     if (!userGoal) {
       await startInteractiveREPL(cwd);
       return;
     }
 
+    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+      ui.printError("Missing API Key. Run 'node dist/sintenel.cjs setup' to configure.");
+      process.exit(1);
+    }
+
     try {
       const manager = new AgentManager(cwd);
       await manager.run(userGoal);
-      ui.printSuccess("◈ [SESSION COMPLETE]");
     } catch (err) {
-      ui.printError(`◈ [FAIL] ${err}`);
-      process.exit(1);
+      ui.printError(`Execution error: ${err}`);
     }
   });
 
-program
-  .command("setup")
-  .description("Save API key")
-  .action(async () => {
-    ui.printHeader("SINTENEL SETUP");
-    const { key } = await inquirer.prompt([{
-      type: "password",
-      name: "key",
-      message: "Enter API Key:",
-      mask: "*"
-    }]);
-    await saveApiKey(key.trim());
-    ui.printSuccess("API key stored.");
-  });
-
-program.parseAsync(process.argv).catch((err) => {
-  console.error(chalk.red("\n◈ [FATAL ERROR] The application crashed unexpectedly."));
-  if (err instanceof Error) {
-    console.error(chalk.dim(err.stack || err.message));
-  } else {
-    console.error(chalk.dim(String(err)));
-  }
+program.parseAsync(process.argv).catch((err: any) => {
+  ui.printError(`Fatal error: ${err}`);
   process.exit(1);
 });

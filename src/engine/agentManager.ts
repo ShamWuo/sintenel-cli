@@ -134,13 +134,14 @@ async function runSubAgent(args: {
   ui.startSpinner(`[${agentName}] Analyzing task...`);
 
   try {
-    const result = await streamText({
+    const result = streamText({
       model: getModel({ subagent: true }),
       messages: [{ role: "system", content: system }, { role: "user", content: args.task }],
       tools,
       maxSteps: 20,
       maxTokens: MAX_OUTPUT_TOKENS_SUBAGENT,
       temperature: 0.3,
+      maxRetries: 5
     });
 
     let fullText = "";
@@ -157,6 +158,33 @@ async function runSubAgent(args: {
     ui.stopSpinner(false, `[${agentName}] Execution failed.`);
     throw err;
   }
+}
+
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  let lastError: any;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      const errorStr = error?.toString() || "";
+      const isQuotaError = error?.status === 429 || 
+                          errorStr.includes("429") || 
+                          errorStr.includes("RESOURCE_EXHAUSTED") ||
+                          errorStr.includes("rate_limit") ||
+                          errorStr.includes("quota");
+      
+      if (isQuotaError && attempt < 5) {
+        // 20 RPM limit is strict. Wait longer to allow bucket to refill.
+        const delay = Math.pow(2, attempt) * 10000 + (Math.random() * 5000); // 20s, 40s...
+        ui.printStreamChunk(`\n⚠️  [QUOTA] Model busy. Cooling down for ${Math.round(delay/1000)}s (Attempt ${attempt}/5)...\n`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError;
 }
 
 export class AgentManager {
@@ -223,12 +251,12 @@ export async function runOrchestratorSession(args: {
 
   for (let turn = 1; turn <= maxSessionTurns; turn++) {
     try {
-      const result = await generateText({ 
+      const result = await withRetry(() => generateText({ 
         model: getModel(), 
         messages: turn > 1 ? pruneMessages(messages, 15) : messages, 
         tools, 
-        maxSteps: 10 
-      });
+        maxSteps: 10
+      }));
 
       ui.clearSpinner();
       ui.printAgentHeader('Orchestrator');

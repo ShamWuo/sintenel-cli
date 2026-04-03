@@ -14,14 +14,23 @@
 
 ---
 
-## 🚀 Quick Start (CyberPatriot Mode)
+---
 
-### 1. Standalone Execution (No `npm install` Required)
-Sintenel-CLI is pre-bundled for high-speed deployment in competition environments.
+## ⚡ Quick Start (The "Guaranteed" Method)
+Sintenel-CLI is designed for extreme environmental resilience, working even on hardened or malware-infected systems.
 
-**Windows (Guaranteed):**
-1. Ensure the `dist` folder and `launch-sintenel.bat` are in the same directory.
-2. Double-click `launch-sintenel.bat`. This automatically repairs system blocks and launches the orchestrator.
+### 1️⃣ Initial Setup
+**Double-click** `setup-sintenel.bat`. This will launch the interactive setup wizard to securely store your API Key.
+*   *Alternatively, in terminal:* `node dist/sintenel.cjs setup`
+
+### 2️⃣ Launching the App
+**Double-click** `launch-sintenel.bat`. This launches the orchestrator and enters interactive mode.
+*   *Alternatively, in terminal:* `.\launch-sintenel.bat "Your security goal here"`
+
+---
+
+### 🛡️ Resilience: The "Guaranteed Launch" System
+Sintenel is designed for extreme environmental resilience...
 
 **Linux:**
 1. Ensure the `dist` folder and `sintenel` wrapper are in the same directory.
@@ -45,16 +54,18 @@ The CLI is optimized for the **Gemini 3** series.
 > [!NOTE]
 > **Quota Warning**: The Google AI Free Tier has a **20 Requests Per Minute (RPM)** limit. If you reach this limit, the CLI will display a countdown until your quota resets.
 
-### 4. Secure Setup (Recommended)
-Instead of hardcoding your API key in a `.env` file, you can now store it securely in your OS credential manager.
+### 💻 Terminal Usage (Power Users)
+If you prefer working directly in the terminal, use these commands:
 
-```bash
-.\sintenel.cmd setup
-```
-Follow the prompts to enter your key. Once stored, you can safely delete the `.env` file. To remove the key, use:
-```bash
-.\sintenel.cmd logout
-```
+| Action | Command |
+| :--- | :--- |
+| **Interactive Mode** | `node dist/sintenel.cjs` |
+| **Direct Goal** | `node dist/sintenel.cjs "Audit all users"` |
+| **Setup Key** | `node dist/sintenel.cjs setup` |
+| **Clear Key** | `node dist/sintenel.cjs logout` |
+
+> [!TIP]
+> **PowerShell Users**: If `node` is not in your PATH, the provided `.ps1` and `.bat` scripts will automatically find it for you. Use `.\launch-sintenel.bat` for the most reliable terminal experience.
 
 ### 6. 🔥 THE GUARANTEED LAUNCH (Bypassing All Restrictions)
 If the system is heavily hardened, infected, or has `cmd.exe` blocked, use the **One-Click Launcher**:

@@ -17,6 +17,9 @@ try {
     format: "cjs",
     outfile: outfile,
     minify: true,
+    define: {
+      "import.meta.url": "undefined",
+    },
     banner: {
       js: "#!/usr/bin/env node",
     },

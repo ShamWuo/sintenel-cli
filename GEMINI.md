@@ -7,17 +7,19 @@
 - **Runtime:** Node.js (v20+)
 - **Language:** TypeScript (ES Modules)
 - **AI Engine:** Vercel AI SDK with Google Gemini 3 (Flash for orchestration, 3.1 Flash Lite for sub-agents).
+- **Quota Resilience:** Automated **Exponential Backoff** handling for 429 quota (free-tier 20 RPM) errors.
 - **Resilience:** Self-healing PowerShell bootstrap, Registry-based CMD repair, Node.js auto-discovery.
-- **Security:** Zod (validation), Hash-chained audit logs, Role-based agent permissions.
+- **Security:** In-app **Setup Wizard**, Keytar/local-fallback encryption, Hash-chained audit logs.
 - **Testing:** Vitest.
 
 ## 🚀 The "Guaranteed Launch" System
 Sintenel-CLI is designed for extreme environmental resilience. If the system is hardened or infected:
-1. **`launch-sintenel.bat`**: The primary one-click entry point. Bypasses Group Policy blocks on CMD and PowerShell execution policies.
-2. **`sintenel.ps1`**: The Master Bootstrap. 
+1. **`launch-sintenel.bat`**: The primary one-click entry point. Bypasses Group Policy blocks and automatically repairs `cmd.exe`.
+2. **`setup-sintenel.bat`**: One-click onboarding. Configures API keys safely without manual `.env` file editing.
+3. **`sintenel.ps1`**: The Master Bootstrap. 
    - **Self-Healing**: Automatically re-enables `cmd.exe` via Registry (`DisableCMD=0`).
-   - **Discovery**: Proactively finds `node.exe` even if PATH is corrupted.
-   - **Tolerance**: Defensively coded to run even if core PowerShell Security/Management modules are missing.
+   - **Discovery**: Proactively finds `node.exe` even if PATH is corrupted (searches Common Files, Program Files, and local app data).
+   - **Onboarding**: Intercepts missing keys and launches the setup wizard automatically.
 
 1.  **Orchestrator (`src/agents/orchestrator.ts`):** The strategic planner. Uses `gemini-3-flash`. It analyzes goals, assesses risks, and generates an **Execution Plan**. It cannot modify files directly; it must delegate to specialized sub-agents.
 2.  **Scout (`src/agents/scout.ts`):** A read-only reconnaissance specialist. Uses `gemini-3.1-flash-lite`. It scans the file system and runs safe shell commands to identify issues.
