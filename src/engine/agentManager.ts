@@ -1,4 +1,4 @@
-import { streamText, tool, type CoreMessage } from "ai";
+import { generateText, streamText, tool, type CoreMessage } from "ai";
 import chalk from "chalk";
 import { google } from "@ai-sdk/google";
 import { appendAuditLog } from "../utils/audit.js";
@@ -223,88 +223,79 @@ export async function runOrchestratorSession(args: {
   };
 
   for (let turn = 1; turn <= maxSessionTurns; turn++) {
-    ui.printAgentHeader('Orchestrator');
-    ui.startSpinner('Connecting to Gemini...');
-
     try {
-      const result = await streamText({ 
+      ui.startSpinner('Connecting to Gemini...');
+      const result = await generateText({ 
         model: getModel(), 
-        messages: turn > 2 ? pruneMessages(messages, 15) : messages, 
+        messages: turn > 1 ? pruneMessages(messages, 15) : messages, 
         tools, 
         maxSteps: 1 
       });
 
-      ui.updateSpinner('Thinking...');
-      let turnText = "";
-
-      // Robuster stream consumption
-      const fullStream = result.fullStream;
-      if (!fullStream) {
-        ui.stopSpinner(false, "Connection failed: No stream returned.");
-        break;
-      }
-
-      for await (const chunk of fullStream) {
-        if (chunk.type === "text-delta") { 
-          if (turnText === "") ui.stopSpinner(true, 'Response incoming:');
-          turnText += chunk.textDelta; 
-          ui.printStreamChunk(chunk.textDelta); 
-        }
-        else if (chunk.type === "tool-call") {
-          ui.stopSpinner(true, `Calling tool: ${chalk.bold.yellow(chunk.toolName)}...`);
-        }
-      }
-      
       ui.clearSpinner();
-      const response = await result.response;
+      const response = result.response;
       for (const msg of response.messages) messages.push(msg);
-      const usage = await result.usage;
+      
+      const turnText = result.text || "";
+      if (turnText) {
+        ui.printAgentHeader('Orchestrator');
+        ui.printStreamChunk(turnText + "\n");
+      }
+
+      const steps = result.steps;
+      const usage = result.usage;
       if (usage) { 
         totalUsage.promptTokens += usage.promptTokens; 
         totalUsage.completionTokens += usage.completionTokens; 
         totalUsage.totalTokens += usage.totalTokens; 
       }
 
-      const steps = await result.steps;
-    const plan = !planApproved ? extractExecutionPlan({ steps }) : null;
+      const plan = !planApproved ? extractExecutionPlan({ steps }) : null;
 
-    if (plan) {
-      planRequestAttempts = 0;
-      printPlanTable(plan, plan.commands.map(c => ({ kind: c.kind, purpose: c.purpose, command: c.command })));
-      if (await confirmYesNo("Execute plan? [Y/N]: ")) {
-        planApproved = true;
-        approvedCommands = new Set(plan.commands.map(c => normalizeCommand(c.command)));
-        messages.push({ role: "user", content: "Operator approved Y." });
-        continue;
-      } else { return { usage: totalUsage }; }
-    }
-
-    if (!planApproved && turnText) {
-      if (steps.flatMap(s => s.toolCalls).some(tc => tc.toolName !== "submitExecutionPlan")) {
-         messages.push({ role: "user", content: "MANDATORY: Call submitExecutionPlan first." });
-         continue;
+      if (plan) {
+        planRequestAttempts = 0;
+        printPlanTable(plan, plan.commands.map(c => ({ kind: c.kind, purpose: c.purpose, command: c.command })));
+        if (await confirmYesNo("Execute plan? [Y/N]: ")) {
+          planApproved = true;
+          approvedCommands = new Set(plan.commands.map(c => normalizeCommand(c.command)));
+          messages.push({ role: "user", content: "Operator approved Y." });
+          continue;
+        } else {
+          return { usage: totalUsage };
+        }
       }
-      planRequestAttempts++;
-      if (planRequestAttempts >= 3) {
-        ui.printError("Unable to get a valid execution plan. Aborting.");
+
+      // Detect stall: No tools, no plan, no progress.
+      const hasTools = steps.flatMap(s => s.toolCalls).length > 0;
+      if (!planApproved && !hasTools && !plan && !turnText.trim()) {
+        ui.printWarning("Model returned an empty response. Aborting session to prevent loop.");
         return { usage: totalUsage };
       }
-      messages.push({ role: "user", content: "Before proceeding, you MUST call submitExecutionPlan with a detailed Phase-based plan." });
-      continue;
-    }
 
-    // Continue the session turn loop; ONLY break if the AI explicitly stops without tools AND we've reached a terminal state.
-    if ((await result.finishReason) === "stop" || (await result.finishReason) === "length") {
-      // In advanced orchestrator modes, we want to allow for many turns even if tools aren't used in one turn.
-      // We only exit if no tools were called AND no plan was generated in this turn, meaning the AI is definitively stalling or silent.
-      if (!steps.flatMap(s => s.toolCalls).length && !plan) {
-         // If it's the very first turn and it's just text, don't break yet!
+      if (!planApproved && turnText) {
+        if (steps.flatMap(s => s.toolCalls).some(tc => tc.toolName !== "submitExecutionPlan")) {
+          messages.push({ role: "user", content: "MANDATORY: Call submitExecutionPlan first before any other tools." });
+          continue;
+        }
+        planRequestAttempts++;
+        if (planRequestAttempts >= 3) {
+          ui.printError("Unable to get a valid execution plan. Aborting.");
+          return { usage: totalUsage };
+        }
+        messages.push({ role: "user", content: "Before proceeding, you MUST call 'submitExecutionPlan' with a detailed Phase-based plan." });
+        continue;
       }
+
+      const finishReason = result.finishReason;
+      if (finishReason === "stop" || finishReason === "length") {
+        if (!hasTools && !plan && !turnText.trim()) {
+          return { usage: totalUsage };
+        }
+      }
+    } catch (err) {
+      ui.printError(`Session error: ${err}`);
+      break;
     }
-  } catch (err) {
-    ui.printError(`Session error: ${err}`);
-    break;
   }
-}
-return { usage: totalUsage };
+  return { usage: totalUsage };
 }
