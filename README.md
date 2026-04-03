@@ -9,7 +9,8 @@
 - **🕵️ Ghost Hunter Recon (Scout)**: Detects "invisible" persistence like WMI Event Subscriptions, IFEO Debugger hijacks, and SUID/SGID misconfigurations.
 - **⚔️ Surgical Remediation (Fixer)**: Applies high-accuracy patches (e.g., permissions resets, service quoting) with mandatory "State-Check -> Verify" loops.
 - **🧠 National-Winner Strategy (Orchestrator)**: Enforces the optimal "Forensics First" order of operations and "Skeptical Auditing" for hidden vulnerabilities.
-- **✨ Premium Interactive REPL**: Real-time AI streaming with "Markdown Snapping," multi-line input support (`\`), and session management.
+- **✨ Premium Interactive REPL**: Real-time AI processing with "Markdown Snapping," multi-line input support (`\`), and session management.
+- **🚀 One-Click Sentinel**: Self-healing bootstrap (`launch-sintenel.bat`) that works even on hardened or malware-infected systems.
 
 ---
 
@@ -18,24 +19,33 @@
 ### 1. Standalone Execution (No `npm install` Required)
 Sintenel-CLI is pre-bundled for high-speed deployment in competition environments.
 
-**Windows:**
-1. Download the `dist` folder and `sintenel.cmd`.
-2. Run: `.\sintenel.cmd "Your objective here"`
+**Windows (Guaranteed):**
+1. Ensure the `dist` folder and `launch-sintenel.bat` are in the same directory.
+2. Double-click `launch-sintenel.bat`. This automatically repairs system blocks and launches the orchestrator.
 
 **Linux:**
-1. Download the `dist` folder and `sintenel` wrapper.
+1. Ensure the `dist` folder and `sintenel` wrapper are in the same directory.
 2. Run: `chmod +x ./sintenel && ./sintenel "Your objective here"`
 
-### 2. Development Setup (Optional)
-If you wish to modify the source:
+### 2. Development & Deployment
+If you wish to modify the source or deploy from scratch:
 ```bash
 git clone https://github.com/ShamWuo/sintenel-cli.git
 cd sintenel-cli
 npm install
 npm run bundle  # Generates the standalone dist/sintenel.cjs
+npm start -- "Audit all users" # Runs the bundled production code
 ```
 
-### 3. Secure Setup (Recommended)
+### 3. Model Configuration
+The CLI is optimized for the **Gemini 3** series.
+- **Orchestrator**: `gemini-3-flash` (Fast, logical, high context)
+- **Sub-Agents**: `gemini-3.1-flash-lite` (Cost-efficient, tool-specialized)
+
+> [!NOTE]
+> **Quota Warning**: The Google AI Free Tier has a **20 Requests Per Minute (RPM)** limit. If you reach this limit, the CLI will display a countdown until your quota resets.
+
+### 4. Secure Setup (Recommended)
 Instead of hardcoding your API key in a `.env` file, you can now store it securely in your OS credential manager.
 
 ```bash
@@ -46,35 +56,22 @@ Follow the prompts to enter your key. Once stored, you can safely delete the `.e
 .\sintenel.cmd logout
 ```
 
-### 4. Entering Interactive Mode
-To launch the full AI streaming REPL with interactive planning and execution:
+### 6. 🔥 THE GUARANTEED LAUNCH (Bypassing All Restrictions)
+If the system is heavily hardened, infected, or has `cmd.exe` blocked, use the **One-Click Launcher**:
 
-```bash
-.\sintenel.cmd
-```
-*Leave the goal empty to enter the interactive workspace.*
+- **Windows**: Run `launch-sintenel.bat`.
+- **PowerShell**: `.\sintenel.ps1 "Your objective"`
 
-### 5. Quick Direct Goal (One-off)
-To run a specific task instantly:
-```bash
-.\sintenel.cmd "Audit all authorized users and compare against README.md"
-```
-
-### 6. Hardened/Malicious Images (Bypassing `DisableCMD`)
-If the image has malware or Group Polices that block `cmd.exe` (Error: `The system cannot find the file specified`), use the **PowerShell wrapper**:
-
-```powershell
-.\sintenel.ps1 "Your objective"
-```
+This bootstrap will:
+1.  **Auto-repair** Registry blocks on `cmd.exe`.
+2.  **Auto-discover** `node.exe` even if it's not in the PATH.
+3.  **Self-relaunch** to bypass PowerShell execution policies.
 
 **🔐 PRO TIP (Scoring Target):**
 If `cmd.exe` is blocked, you can often fix it via PowerShell to gain access back:
 ```powershell
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\System" -Name "DisableCMD" -Value 0
 ```
-
-> [!IMPORTANT]
-> If you are on a restricted "Hardened" image and the instructions above fail, please see the **[TROUBLESHOOTING_HARDENED_IMAGES.md](./TROUBLESHOOTING_HARDENED_IMAGES.md)** guide.
 
 ---
 
@@ -89,7 +86,7 @@ Automatically initiates a high-speed, "Nationals-Tier" security audit.
 
 ### 2. Forensic Investigation Mode
 Triggered by goals starting with "Forensic Question" or requesting metadata.
-- **Restriction**: **STRICTLY PROHIBITED** from modifying the system.
+- **Restriction**: **STRICTLY PROHIBITED** from modifying the system. All write operations are blocked.
 - **Report**: Consolidated Question, Answer, and Evidence (MD5/SHA256) format.
 
 ### 3. Interactive REPL Commands
@@ -106,7 +103,7 @@ Triggered by goals starting with "Forensic Question" or requesting metadata.
 - **Execution Plans**: Every action is preceded by a detailed plan requiring operator approval (Y/N).
 - **Tamper-Evident Logs**: All actions are hashed and logged to `sentinel-audit.log` for a cryptographically signed chain of custody.
 - **Surgical Consistency**: Uses `.bak` backups for all system config changes (PAM, SSH, Registry).
-- **Headless mode**: Set `HEADLESS=true` for automated testing and CI/CD pipelines.
+- **Atomic Verification**: Every fix is automatically followed by a verification command to confirm success.
 
 ---
 
@@ -116,13 +113,6 @@ Sintenel-CLI's "DNA" is built on elite CyberPatriot checklists:
 - `knowledge_base/playbook_windows.md`: Registry security and SECPOL IDs.
 - `knowledge_base/playbook_linux.md`: UID 0 auditing and kernel hardening.
 - `knowledge_base/forensics_guide.md`: Artifact discovery and hashing.
-
----
-
-## 🧪 Performance
-- **99% Accuracy** in identifying "Invisible" persistence.
-- **Atomic Verification** for 100% of remediations.
-- **Real-Time Streaming** for 0ms perceived latency.
 
 ---
 

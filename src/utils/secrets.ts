@@ -1,17 +1,17 @@
 import fs from "node:fs";
 import { createRequire } from "node:module";
 
-// Polyfill require
-const _require = typeof require !== "undefined" 
-  ? require 
-  : createRequire(import.meta.url);
+// Polyfill require correctly for both ESM (tsx) and CJS (bundle)
+const _require = typeof require !== "undefined"
+  ? require
+  : createRequire(import.meta?.url || "file://" + process.cwd());
 
-// Soft-load keytar (Native dependency that often fails in restricted images)
+// Soft-load keytar
 let keytar: any = null;
 try {
   keytar = _require("keytar");
 } catch (e) {
-  console.warn("⚠️  Native credential manager unavailable. Falling back to local .env storage.");
+  // Silent; fall back to local .env
 }
 
 const SERVICE_NAME = "sintenel-cli";

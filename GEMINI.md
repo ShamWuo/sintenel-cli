@@ -6,16 +6,22 @@
 ### Key Technologies
 - **Runtime:** Node.js (v20+)
 - **Language:** TypeScript (ES Modules)
-- **AI Engine:** Vercel AI SDK with Google Gemini (3 Flash for orchestration, 3.1 Flash Lite for sub-agents)
-- **Security:** Zod (validation), Hash-chained audit logs, Role-based agent permissions
-- **Testing:** Vitest
+- **AI Engine:** Vercel AI SDK with Google Gemini 3 (Flash for orchestration, 3.1 Flash Lite for sub-agents).
+- **Resilience:** Self-healing PowerShell bootstrap, Registry-based CMD repair, Node.js auto-discovery.
+- **Security:** Zod (validation), Hash-chained audit logs, Role-based agent permissions.
+- **Testing:** Vitest.
 
-## Architecture & Agents
-Sintenel-CLI operates using a hierarchical delegation model:
+## 🚀 The "Guaranteed Launch" System
+Sintenel-CLI is designed for extreme environmental resilience. If the system is hardened or infected:
+1. **`launch-sintenel.bat`**: The primary one-click entry point. Bypasses Group Policy blocks on CMD and PowerShell execution policies.
+2. **`sintenel.ps1`**: The Master Bootstrap. 
+   - **Self-Healing**: Automatically re-enables `cmd.exe` via Registry (`DisableCMD=0`).
+   - **Discovery**: Proactively finds `node.exe` even if PATH is corrupted.
+   - **Tolerance**: Defensively coded to run even if core PowerShell Security/Management modules are missing.
 
-1.  **Orchestrator (`src/agents/orchestrator.ts`):** The strategic planner. It analyzes goals, assesses risks, and generates an **Execution Plan**. It cannot modify files directly; it must delegate to specialized sub-agents.
-2.  **Scout (`src/agents/scout.ts`):** A read-only reconnaissance specialist. It scans the file system and runs safe shell commands to identify issues.
-3.  **Fixer (`src/agents/fixer.ts`):** The remediation specialist. It applies patches and verifies them with tests. It can only write to files after the Orchestrator's plan is approved by the user.
+1.  **Orchestrator (`src/agents/orchestrator.ts`):** The strategic planner. Uses `gemini-3-flash`. It analyzes goals, assesses risks, and generates an **Execution Plan**. It cannot modify files directly; it must delegate to specialized sub-agents.
+2.  **Scout (`src/agents/scout.ts`):** A read-only reconnaissance specialist. Uses `gemini-3.1-flash-lite`. It scans the file system and runs safe shell commands to identify issues.
+3.  **Fixer (`src/agents/fixer.ts`):** The remediation specialist. Uses `gemini-3.1-flash-lite`. It applies patches and verifies them with tests. It can only write to files after the Orchestrator's plan is approved by the user.
 
 ### Core Security Tools
 - **`fileOperator`:** Safe file operations with path validation (prevents directory traversal) and automatic backups.

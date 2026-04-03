@@ -22,8 +22,8 @@ import { createVerifyBaselineTool } from "../tools/verifyBaseline.js";
 import { createGenerateFirewallPolicyTool } from "../tools/generateFirewallPolicy.js";
 import { createDiffAuditStateTool } from "../tools/diffAuditState.js";
 
-const DEFAULT_MODEL = "gemini-2.5-flash"; 
-const DEFAULT_SUBAGENT_MODEL = "gemini-2.5-flash"; 
+const DEFAULT_MODEL = "gemini-3-flash"; 
+const DEFAULT_SUBAGENT_MODEL = "gemini-3.1-flash-lite"; 
 const MAX_OUTPUT_TOKENS_SUBAGENT = 2048;
 
 function getModel(options?: { subagent?: boolean }) {
@@ -183,7 +183,6 @@ export async function runOrchestratorSession(args: {
   totalUsage: { promptTokens: number; completionTokens: number; totalTokens: number };
 }): Promise<{ usage: any }> {
   const { cwd, messages, totalUsage } = args;
-  console.log(chalk.dim(`◈ [DEBUG] Internal: Orchestration session logic entered for CWD: ${cwd}`));
   const maxSessionTurns = Number(process.env.SINTENEL_MAX_SESSION_TURNS || "18");
 
   let planApproved = false;
@@ -224,23 +223,21 @@ export async function runOrchestratorSession(args: {
 
   for (let turn = 1; turn <= maxSessionTurns; turn++) {
     try {
-      ui.startSpinner('Connecting to Gemini...');
       const result = await generateText({ 
         model: getModel(), 
         messages: turn > 1 ? pruneMessages(messages, 15) : messages, 
         tools, 
-        maxSteps: 1 
+        maxSteps: 10 
       });
 
       ui.clearSpinner();
-      const response = result.response;
-      for (const msg of response.messages) messages.push(msg);
-      
-      const turnText = result.text || "";
-      if (turnText) {
-        ui.printAgentHeader('Orchestrator');
-        ui.printStreamChunk(turnText + "\n");
+      ui.printAgentHeader('Orchestrator');
+      if (result.text) {
+        ui.printStreamChunk(result.text + "\n");
       }
+
+      // Finalize the record
+      for (const msg of result.response.messages) messages.push(msg);
 
       const steps = result.steps;
       const usage = result.usage;
@@ -265,15 +262,15 @@ export async function runOrchestratorSession(args: {
         }
       }
 
-      // Detect stall: No tools, no plan, no progress.
-      const hasTools = steps.flatMap(s => s.toolCalls).length > 0;
+      const turnText = result.text;
+      const hasTools = steps.flatMap((s: any) => s.toolCalls).length > 0;
       if (!planApproved && !hasTools && !plan && !turnText.trim()) {
         ui.printWarning("Model returned an empty response. Aborting session to prevent loop.");
         return { usage: totalUsage };
       }
 
       if (!planApproved && turnText) {
-        if (steps.flatMap(s => s.toolCalls).some(tc => tc.toolName !== "submitExecutionPlan")) {
+        if (steps.flatMap((s: any) => s.toolCalls).some((tc: any) => tc.toolName !== "submitExecutionPlan")) {
           messages.push({ role: "user", content: "MANDATORY: Call submitExecutionPlan first before any other tools." });
           continue;
         }
