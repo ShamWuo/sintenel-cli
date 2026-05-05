@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { AgentManager } from "./engine/agentManager.js";
 import { getApiKey, saveApiKey } from "./utils/secrets.js";
 import inquirer from "inquirer";
+import { select } from "@inquirer/prompts";
 import chalk from "chalk";
 import { ui } from "./utils/ui.js";
 import { selfHealSystem } from "./utils/self-heal.js";
@@ -16,13 +17,24 @@ async function startInteractiveREPL(cwd: string) {
   console.log(chalk.dim("Type your security goals or use /help for commands. Type 'exit' to quit.\n"));
 
   const checkAuth = async () => {
-    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim()) {
-      const storedKey = await getApiKey();
-      if (storedKey) {
-        process.env.GOOGLE_GENERATIVE_AI_API_KEY = storedKey;
+    const providers: ("gemini" | "openai" | "anthropic")[] = ["gemini", "openai", "anthropic"];
+    let anyKey = false;
+
+    for (const p of providers) {
+      const envKey = p === "gemini" ? "GOOGLE_GENERATIVE_AI_API_KEY" : `${p.toUpperCase()}_API_KEY`;
+      if (!process.env[envKey]?.trim()) {
+        const stored = await getApiKey(p);
+        if (stored) {
+          process.env[envKey] = stored;
+          anyKey = true;
+        }
       } else {
-        ui.printWarning("API Key missing. Type '/auth' to set it up.");
+        anyKey = true;
       }
+    }
+
+    if (!anyKey) {
+      ui.printWarning("No API Keys found. Type '/auth' to configure a provider.");
     }
   };
 
@@ -67,10 +79,25 @@ async function startInteractiveREPL(cwd: string) {
     }
 
     if (lowerGoal === "/auth" || lowerGoal === "auth") {
-      await runSetupWizard();
-      // Reload key into process.env
-      const key = await getApiKey();
-      if (key) process.env.GOOGLE_GENERATIVE_AI_API_KEY = key;
+      const modelId = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+      let provider: "gemini" | "openai" | "anthropic" = "gemini";
+      
+      if (modelId.startsWith("gpt") || modelId.startsWith("o1")) provider = "openai";
+      else if (modelId.startsWith("claude")) provider = "anthropic";
+
+      ui.printInfo(`Configuring credentials for active provider: ${chalk.bold.cyan(provider.toUpperCase())}`);
+      
+      const { key } = await inquirer.prompt([{
+        type: "password",
+        name: "key",
+        message: `Paste your ${provider} API Key:`,
+        mask: "*",
+        validate: (input: string) => input.length > 5 || "Invalid key length."
+      }]);
+
+      await saveApiKey(provider, key);
+      ui.printSuccess(`${provider} API Key saved securely.`);
+      await checkAuth();
       continue;
     }
 
@@ -91,10 +118,63 @@ async function startInteractiveREPL(cwd: string) {
     }
 
     if (lowerGoal === "/model") {
-      const info = manager.getModelInfo();
-      ui.printSection("Active Models");
-      ui.printInfo(`Orchestrator: ${chalk.yellow(info.orchestrator)}`);
-      ui.printInfo(`Sub-agents:   ${chalk.yellow(info.subagent)}`);
+      try {
+        const provider = await select({
+          message: "Select AI Provider (Use Arrow Keys):",
+          choices: [
+            { name: chalk.blue("Google Gemini"), value: "gemini" },
+            { name: chalk.green("OpenAI"), value: "openai" },
+            { name: chalk.magenta("Anthropic (Claude)"), value: "anthropic" },
+            { name: "Cancel", value: "cancel" }
+          ]
+        });
+
+        if (provider === "cancel") continue;
+
+        const modelChoices = {
+          gemini: [
+            { name: "Gemini 3.1 Pro (Advanced Reasoning & Coding)", value: "gemini-3.1-pro-preview" },
+            { name: "Gemini 3 Flash (High Performance)", value: "gemini-3-flash-preview" },
+            { name: "Gemini 3.1 Flash-Lite (Fast & Cost-Efficient)", value: "gemini-3.1-flash-lite-preview" },
+            { name: "Gemini 2.5 Pro (Deep Reasoning)", value: "gemini-2.5-pro" },
+            { name: "Gemini 2.5 Flash (Price-Performance Balance)", value: "gemini-2.5-flash" },
+            { name: "Gemini 2.5 Flash-Lite (Fastest 2.5 Model)", value: "gemini-2.5-flash-lite" },
+            { name: "Gemini 1.5 Pro (Legacy Stable)", value: "gemini-1.5-pro" },
+            { name: "Gemini 1.5 Flash (Legacy Fast)", value: "gemini-1.5-flash" }
+          ],
+          openai: [
+            { name: "GPT-4o (Frontier Model)", value: "gpt-4o" },
+            { name: "GPT-4o Mini (Efficient & Fast)", value: "gpt-4o-mini" },
+            { name: "o1-preview (Advanced Reasoning)", value: "o1-preview" },
+            { name: "o1-mini (Reasoning Mini)", value: "o1-mini" }
+          ],
+          anthropic: [
+            { name: "Claude 3.5 Sonnet (Best Balance)", value: "claude-3-5-sonnet-latest" },
+            { name: "Claude 3.5 Haiku (Extremely Fast)", value: "claude-3-5-haiku-latest" },
+            { name: "Claude 3 Opus (Maximum Intelligence)", value: "claude-3-opus-latest" }
+          ]
+        };
+
+        const model = await select({
+          message: `Select ${provider.toUpperCase()} model:`,
+          choices: [
+            ...(modelChoices[provider as keyof typeof modelChoices]),
+            { name: "Back", value: "back" }
+          ]
+        });
+
+        if (model === "back") {
+          // Re-trigger the /model logic
+          process.nextTick(() => { /* handled by loop */ });
+          continue; 
+        }
+
+        process.env.GEMINI_MODEL = model;
+        ui.printSuccess(`Model switched to: ${chalk.bold.cyan(model)}`);
+        await checkAuth();
+      } catch (e) {
+        // Handle SIGINT/Cancel
+      }
       continue;
     }
 
@@ -108,16 +188,30 @@ async function startInteractiveREPL(cwd: string) {
 
 async function runSetupWizard() {
   ui.printSection("Sintenel API Setup");
+  const { provider } = await inquirer.prompt([{
+    type: "list",
+    name: "provider",
+    message: "Which AI provider do you want to configure?",
+    choices: [
+      { name: "Google Gemini", value: "gemini" },
+      { name: "OpenAI (GPT-4o, etc.)", value: "openai" },
+      { name: "Anthropic (Claude 3.5, etc.)", value: "anthropic" },
+      { name: "Back", value: "back" }
+    ]
+  }]);
+
+  if (provider === "back") return;
+
   const { key } = await inquirer.prompt([{
     type: "password",
     name: "key",
-    message: "Paste your Google Generative AI API Key:",
+    message: `Paste your ${provider} API Key:`,
     mask: "*",
     validate: (input: string) => input.length > 5 || "Invalid key length."
   }]);
 
-  await saveApiKey(key);
-  ui.printSuccess("API Key saved securely.");
+  await saveApiKey(provider, key);
+  ui.printSuccess(`${provider} API Key saved securely.`);
 }
 
 program
@@ -140,23 +234,43 @@ program
     const cwd = resolve(opts.cwd ?? process.cwd());
     const userGoal = goalParts.join(" ").trim();
 
-    // Load key early
-    const storedKey = await getApiKey();
-    if (storedKey) process.env.GOOGLE_GENERATIVE_AI_API_KEY = storedKey;
+    // Load keys early
+    const providers: ("gemini" | "openai" | "anthropic")[] = ["gemini", "openai", "anthropic"];
+    for (const p of providers) {
+      const envKey = p === "gemini" ? "GOOGLE_GENERATIVE_AI_API_KEY" : `${p.toUpperCase()}_API_KEY`;
+      if (!process.env[envKey]) {
+        const stored = await getApiKey(p);
+        if (stored) process.env[envKey] = stored;
+      }
+    }
 
     if (!userGoal) {
       await startInteractiveREPL(cwd);
       return;
     }
 
-    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-      ui.printWarning("\n[API] API Key not found. Let's set up Sintenel now!");
+    const hasAnyKey = providers.some(p => {
+      const envKey = p === "gemini" ? "GOOGLE_GENERATIVE_AI_API_KEY" : `${p.toUpperCase()}_API_KEY`;
+      return !!process.env[envKey];
+    });
+
+    if (!hasAnyKey) {
+      ui.printWarning("\n[API] No API Keys found. Let's set up Sintenel now!");
       await runSetupWizard();
-      const key = await getApiKey();
-      if (key) {
-        process.env.GOOGLE_GENERATIVE_AI_API_KEY = key;
-      } else {
-        ui.printError("Setup cancelled. Please provide an API key to continue.");
+      // Re-check after setup
+      for (const p of providers) {
+        const envKey = p === "gemini" ? "GOOGLE_GENERATIVE_AI_API_KEY" : `${p.toUpperCase()}_API_KEY`;
+        const stored = await getApiKey(p);
+        if (stored) process.env[envKey] = stored;
+      }
+      
+      const stillNoKey = !providers.some(p => {
+        const envKey = p === "gemini" ? "GOOGLE_GENERATIVE_AI_API_KEY" : `${p.toUpperCase()}_API_KEY`;
+        return !!process.env[envKey];
+      });
+
+      if (stillNoKey) {
+        ui.printError("No provider configured. Please provide an API key to continue.");
         process.exit(1);
       }
     }

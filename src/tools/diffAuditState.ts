@@ -16,8 +16,8 @@ export type DiffAuditStateContext = {
 export function createDiffAuditStateTool(ctx: DiffAuditStateContext) {
   return tool({
     description: "Compare initial and current system audit states to verify remediations and identify remaining issues.",
-    parameters: diffAuditStateInputSchema,
-    execute: async ({ initialState, currentState }) => {
+    inputSchema: diffAuditStateInputSchema,
+    execute: async ({ initialState, currentState }: z.infer<typeof diffAuditStateInputSchema>) => {
       ctx.audit(ctx.cwd, {
         kind: "tool",
         agent: ctx.agent,

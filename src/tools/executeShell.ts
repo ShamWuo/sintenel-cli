@@ -57,8 +57,8 @@ function getShell(requested?: string): { shell: string; args: string[] } {
 export function createExecuteShellTool(ctx: ExecuteShellContext) {
   return tool({
     description: "Run approved shell command (auto-detects bash/PowerShell). Requires plan confirmation.",
-    parameters: executeShellInputSchema,
-    execute: async ({ command, shell: requestedShell }) => {
+    inputSchema: executeShellInputSchema,
+    execute: async ({ command, shell: requestedShell }: z.infer<typeof executeShellInputSchema>) => {
       ctx.audit(ctx.cwd, {
         kind: "tool",
         agent: ctx.agent,

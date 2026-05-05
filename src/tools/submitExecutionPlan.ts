@@ -64,8 +64,8 @@ export function createSubmitExecutionPlanTool(ctx: SubmitExecutionPlanContext) {
   return tool({
     description:
       "REQUIRED before any executePowerShell use: submit the exact PowerShell commands you will run as a structured plan. The CLI will show a table and wait for Y/N.",
-    parameters: submitExecutionPlanInputSchema,
-    execute: async (plan) => {
+    inputSchema: submitExecutionPlanInputSchema,
+    execute: async (plan: ExecutionPlan) => {
       ctx.audit(ctx.cwd, {
         kind: "tool",
         agent: ctx.agent,

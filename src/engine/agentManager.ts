@@ -1,6 +1,8 @@
-import { generateText, streamText, tool, type CoreMessage } from "ai";
+import { generateText, tool, stepCountIs, type ModelMessage } from "ai";
 import chalk from "chalk";
 import { google } from "@ai-sdk/google";
+import { openai } from "@ai-sdk/openai";
+import { anthropic } from "@ai-sdk/anthropic";
 import { appendAuditLog } from "../utils/audit.js";
 import { confirmYesNo } from "../utils/confirm.js";
 import { createExecutePowerShellTool } from "../tools/executePowerShell.js";
@@ -22,18 +24,36 @@ import { createVerifyBaselineTool } from "../tools/verifyBaseline.js";
 import { createGenerateFirewallPolicyTool } from "../tools/generateFirewallPolicy.js";
 import { createDiffAuditStateTool } from "../tools/diffAuditState.js";
 
-const DEFAULT_MODEL = "gemini-2.5-flash"; 
-const DEFAULT_SUBAGENT_MODEL = "gemini-2.5-flash"; 
+const DEFAULT_MODEL = "gemini-3.1-pro-preview"; 
+const DEFAULT_SUBAGENT_MODEL = "gemini-3-flash-preview"; 
 const MAX_OUTPUT_TOKENS_SUBAGENT = 2048;
 
 function getModelId(options?: { subagent?: boolean }): string {
-  return options?.subagent 
+  const model = options?.subagent 
     ? (process.env.AI_SUBAGENT_MODEL?.trim() || DEFAULT_SUBAGENT_MODEL)
     : (process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL);
+  return model;
 }
 
 function getModel(options?: { subagent?: boolean }) {
-  return google(getModelId(options));
+  const modelId = getModelId(options).toLowerCase();
+  
+  if (modelId.startsWith("gpt") || modelId.startsWith("o1") || modelId.startsWith("o3")) {
+    return openai(modelId);
+  }
+  
+  if (modelId.startsWith("claude")) {
+    return anthropic(modelId);
+  }
+  
+  // Default to Google with thinking enabled for high-level models
+  const isHighLevel = modelId.includes("pro") || modelId.includes("thinking") || modelId.includes("2.5") || modelId.includes("3.1");
+  return google(modelId, isHighLevel ? {
+    thinkingConfig: {
+      thinkingBudget: 2048,
+      includeThoughts: true
+    }
+  } : {});
 }
 
 export type PlanRow = { kind: "recon" | "change" | "verify"; purpose: string; command: string };
@@ -81,12 +101,12 @@ function printPlanTable(plan: ExecutionPlan, rows: PlanRow[]): void {
   console.log('');
 }
 
-function pruneMessages(messages: CoreMessage[], keepLast: number = 10): CoreMessage[] {
+function pruneMessages(messages: ModelMessage[], keepLast: number = 10): ModelMessage[] {
   if (messages.length <= keepLast + 2) return messages;
   const system = messages.find(m => m.role === "system");
   const userGoal = messages.find((m, i) => m.role === "user" && i > 0);
   const recent = messages.slice(-keepLast);
-  const pruned: CoreMessage[] = [];
+  const pruned: ModelMessage[] = [];
   if (system) pruned.push(system);
   if (userGoal && !recent.includes(userGoal)) pruned.push(userGoal);
   pruned.push(...recent.filter(m => m !== system && m !== userGoal));
@@ -104,7 +124,7 @@ async function runSubAgent(args: {
   allowDestructiveOps: () => boolean;
 }): Promise<{ text: string; usage?: any }> {
   const system = args.name === "scout" ? SCOUT_SYSTEM : FIXER_SYSTEM;
-  const tools: Record<string, any> = {
+  const tools: any = {
     executePowerShell: createExecutePowerShellTool({
       cwd: args.cwd,
       audit: appendAuditLog,
@@ -137,26 +157,21 @@ async function runSubAgent(args: {
   ui.startSpinner(`[${agentName}] Analyzing task...`);
 
   try {
-    const result = streamText({
+    const result = await generateText({
       model: getModel({ subagent: true }),
-      messages: [{ role: "system", content: system }, { role: "user", content: args.task }],
+      system,
+      messages: [{ role: "user", content: args.task }],
       tools,
-      maxSteps: 20,
-      maxTokens: MAX_OUTPUT_TOKENS_SUBAGENT,
-      temperature: 0.3,
-      maxRetries: 5
+      stopWhen: stepCountIs(15),
+      maxOutputTokens: MAX_OUTPUT_TOKENS_SUBAGENT,
+      temperature: 0.1
     });
 
-    let fullText = "";
-    for await (const chunk of result.fullStream) {
-      if (chunk.type === "text-delta") fullText += chunk.textDelta;
-      else if (chunk.type === "tool-call") ui.updateSpinner(`[${agentName}] Running tool: ${chalk.bold.yellow(chunk.toolName)}...`);
-    }
-
+    const fullText = result.text;
     ui.stopSpinner(true, `[${agentName}] Task complete.`);
-    const usage = await result.usage;
-    appendAuditLog(args.cwd, { kind: "ai", agent: args.name, payload: { text: fullText, usage } });
-    return { text: `### [${agentName}] Task Report\n${fullText}`, usage };
+    
+    appendAuditLog(args.cwd, { kind: "ai", agent: args.name, payload: { text: fullText, usage: result.usage } });
+    return { text: `### [${agentName}] Task Report\n${fullText}`, usage: result.usage };
   } catch (err) {
     ui.stopSpinner(false, `[${agentName}] Execution failed.`);
     throw err;
@@ -198,7 +213,7 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 export class AgentManager {
-  private messages: CoreMessage[] = [{ role: "system", content: ORCHESTRATOR_SYSTEM }];
+  private messages: ModelMessage[] = [{ role: "system", content: ORCHESTRATOR_SYSTEM }];
   private totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
   constructor(private readonly cwd: string) {}
   public getMessages() { return this.messages; }
@@ -211,23 +226,23 @@ export class AgentManager {
   }
 
   async run(userGoal: string): Promise<void> {
-    const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
+    const model = getModelId();
     const mode = process.env.SINTENEL_RETRY_MODE || "standard";
     ui.printInfo(`[SESSION] Model: ${chalk.bold.cyan(model)} | Quota Mode: ${chalk.yellow(mode)}`);
     
     this.messages.push({ role: "user", content: userGoal });
     const result = await runOrchestratorSession({ cwd: this.cwd, messages: this.messages, totalUsage: this.totalUsage });
     if (result.usage) {
-      this.totalUsage.promptTokens += result.usage.promptTokens;
-      this.totalUsage.completionTokens += result.usage.completionTokens;
-      this.totalUsage.totalTokens += result.usage.totalTokens;
+      this.totalUsage.promptTokens += result.usage.inputTokens || 0;
+      this.totalUsage.completionTokens += result.usage.outputTokens || 0;
+      this.totalUsage.totalTokens += result.usage.totalTokens || 0;
     }
   }
 }
 
 export async function runOrchestratorSession(args: {
   cwd: string;
-  messages: CoreMessage[];
+  messages: ModelMessage[];
   totalUsage: { promptTokens: number; completionTokens: number; totalTokens: number };
 }): Promise<{ usage: any }> {
   const { cwd, messages, totalUsage } = args;
@@ -246,23 +261,23 @@ export async function runOrchestratorSession(args: {
     commandExecutionCount.set(key, (commandExecutionCount.get(key) || 0) + 1);
   };
 
-  const tools = {
+  const tools: any = {
     submitExecutionPlan: createSubmitExecutionPlanTool({ cwd, audit: appendAuditLog, agent: "orchestrator" }),
     executePowerShell: createExecutePowerShellTool({ cwd, audit: appendAuditLog, agent: "orchestrator", executionAllowed, isCommandApproved, canExecuteCommandNow, onCommandExecuted }),
     fileOperator: createFileOperatorTool({ cwd, audit: appendAuditLog, agent: "orchestrator", writeAllowed: executionAllowed, allowDestructiveOps: () => false }),
     diffAuditState: createDiffAuditStateTool({ cwd, audit: appendAuditLog, agent: "orchestrator" }),
     delegateToScout: tool({
       description: "Delegate recon to Scout.",
-      parameters: z.object({ task: z.string() }),
-      execute: async ({ task }) => {
+      inputSchema: z.object({ task: z.string() }),
+      execute: async ({ task }: { task: string }) => {
         if (!planApproved) return { ok: false as const, error: "Plan required." };
         return { ok: true as const, report: (await runSubAgent({ name: "scout", task, cwd, executionAllowed, isCommandApproved, canExecuteCommandNow, onCommandExecuted, allowDestructiveOps: () => false })).text };
       }
     }),
     delegateToFixer: tool({
       description: "Delegate patching to Fixer.",
-      parameters: z.object({ task: z.string() }),
-      execute: async ({ task }) => {
+      inputSchema: z.object({ task: z.string() }),
+      execute: async ({ task }: { task: string }) => {
         if (!planApproved) return { ok: false as const, error: "Plan required." };
         return { ok: true as const, report: (await runSubAgent({ name: "fixer", task, cwd, executionAllowed, isCommandApproved, canExecuteCommandNow, onCommandExecuted, allowDestructiveOps: () => true })).text };
       }
@@ -273,9 +288,10 @@ export async function runOrchestratorSession(args: {
     try {
       const result = await withRetry(() => generateText({ 
         model: getModel(), 
-        messages: turn > 1 ? pruneMessages(messages, 15) : messages, 
+        system: ORCHESTRATOR_SYSTEM,
+        messages: turn > 1 ? pruneMessages(messages, 15) : messages.filter(m => m.role !== "system"), 
         tools, 
-        maxSteps: 10
+        stopWhen: stepCountIs(15)
       }));
 
       ui.clearSpinner();
@@ -290,9 +306,9 @@ export async function runOrchestratorSession(args: {
       const steps = result.steps;
       const usage = result.usage;
       if (usage) { 
-        totalUsage.promptTokens += usage.promptTokens; 
-        totalUsage.completionTokens += usage.completionTokens; 
-        totalUsage.totalTokens += usage.totalTokens; 
+        totalUsage.promptTokens += usage.inputTokens || 0; 
+        totalUsage.completionTokens += usage.outputTokens || 0; 
+        totalUsage.totalTokens += usage.totalTokens || 0; 
       }
 
       const plan = !planApproved ? extractExecutionPlan({ steps }) : null;

@@ -9,7 +9,7 @@ async function list() {
     // However, usually we can just brute force a few guesses or use the list endpoint if we create a client.
     
     // Let's try the common ones as of 2026.
-    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-2.5-flash", "gemini-3-flash", "gemini-3.1-pro", "gemini-2.0-flash-exp"];
+    const models = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-3-flash", "gemini-3.1-pro", "gemini-2.0-flash-exp"];
     
     for (const m of models) {
       try {

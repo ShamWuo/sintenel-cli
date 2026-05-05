@@ -35,8 +35,8 @@ export type ExecutePowerShellContext = {
 export function createExecutePowerShellTool(ctx: ExecutePowerShellContext) {
   return tool({
     description: "Run approved PowerShell command in working directory. Requires plan confirmation.",
-    parameters: executePowerShellInputSchema,
-    execute: async ({ command }) => {
+    inputSchema: executePowerShellInputSchema,
+    execute: async ({ command }: z.infer<typeof executePowerShellInputSchema>) => {
       if (/[^\x09\x20-\x7E]/.test(command)) {
         return {
           ok: false as const,

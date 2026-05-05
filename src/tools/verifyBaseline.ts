@@ -19,8 +19,8 @@ export type VerifyBaselineContext = {
 export function createVerifyBaselineTool(ctx: VerifyBaselineContext) {
   return tool({
     description: "Compare current system state (users, services, etc.) against a clean OS baseline to find anomalies.",
-    parameters: verifyBaselineInputSchema,
-    execute: async ({ category, currentList, osBaseline }) => {
+    inputSchema: verifyBaselineInputSchema,
+    execute: async ({ category, currentList, osBaseline }: z.infer<typeof verifyBaselineInputSchema>) => {
       const fileName = osBaseline === "ubuntu_2204" ? "baseline_linux_ubuntu_2204.json" : "baseline_windows_10.json";
       const baselinePath = join(ctx.cwd, "scripts", "security", fileName);
       
@@ -39,15 +39,15 @@ export function createVerifyBaselineTool(ctx: VerifyBaselineContext) {
 
       try {
         const baselineData = JSON.parse(readFileSync(baselinePath, "utf8"));
-        const baselineKey = {
+        const baselineKey = ({
           users: osBaseline === "ubuntu_2204" ? "authorized_users" : "standard_users",
           groups: osBaseline === "ubuntu_2204" ? "authorized_groups" : "standard_groups",
           services: osBaseline === "ubuntu_2204" ? "standard_services" : "standard_services",
           suid_binaries: "standard_suid_binaries"
-        }[category];
+        } as any)[category];
 
         const standardItems = new Set(baselineData[baselineKey] || []);
-        const anomalies = currentList.filter(item => !standardItems.has(item));
+        const anomalies = currentList.filter((item: string) => !standardItems.has(item));
 
         return {
           ok: true as const,

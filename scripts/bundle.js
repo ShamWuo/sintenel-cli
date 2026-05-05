@@ -13,12 +13,13 @@ try {
     entryPoints: ["src/index.ts"],
     bundle: true,
     platform: "node",
-    target: "node20",
+    target: "node18",
     format: "cjs",
     outfile: outfile,
     minify: true,
-    define: {
-      "import.meta.url": "undefined",
+    external: ["keytar"],
+    logOverride: {
+      "empty-import-meta": "silent",
     },
     banner: {
       js: "#!/usr/bin/env node",

@@ -18,8 +18,8 @@ export type GenerateFirewallPolicyContext = {
 export function createGenerateFirewallPolicyTool(ctx: GenerateFirewallPolicyContext) {
   return tool({
     description: "Generate a platform-specific firewall hardening script (UFW or Netsh) based on authorized port whitelists.",
-    parameters: generateFirewallPolicyInputSchema,
-    execute: async ({ os, allowedTcpPorts, allowedUdpPorts, blockAllOther }) => {
+    inputSchema: generateFirewallPolicyInputSchema,
+    execute: async ({ os, allowedTcpPorts, allowedUdpPorts, blockAllOther }: z.infer<typeof generateFirewallPolicyInputSchema>) => {
       ctx.audit(ctx.cwd, {
         kind: "tool",
         agent: ctx.agent,

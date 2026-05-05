@@ -19,8 +19,8 @@ export type VerificationTestContext = {
 export function createSubmitVerificationTestTool(ctx: VerificationTestContext) {
   return tool({
     description: "Submit an automated verification script that mirrors the competition scoring engine.",
-    parameters: verificationTestInputSchema,
-    execute: async ({ testName, code, platform }) => {
+    inputSchema: verificationTestInputSchema,
+    execute: async ({ testName, code, platform }: { testName: string; code: string; platform: string }) => {
       const testDir = join(ctx.cwd, "verification_tests");
       mkdirSync(testDir, { recursive: true });
 

@@ -17,8 +17,8 @@ export type ExtractReadmeContext = {
 export function createExtractReadmeTool(ctx: ExtractReadmeContext) {
   return tool({
     description: "Extract authorized users, admins, and required services from the README file. Essential for avoiding penalties.",
-    parameters: extractReadmeInputSchema,
-    execute: async ({ readmePath }) => {
+    inputSchema: extractReadmeInputSchema,
+    execute: async ({ readmePath }: z.infer<typeof extractReadmeInputSchema>) => {
       const fullPath = join(ctx.cwd, readmePath);
       
       ctx.audit(ctx.cwd, {

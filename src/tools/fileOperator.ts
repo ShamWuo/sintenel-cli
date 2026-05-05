@@ -89,8 +89,8 @@ export type FileOperatorContext = {
 export function createFileOperatorTool(ctx: FileOperatorContext) {
   return tool({
     description: "Read, write, patch, delete, rename, or rollback files. Rollback restores the most recent .bak file.",
-    parameters: fileOperatorInputSchema,
-    execute: async (input) => {
+    inputSchema: fileOperatorInputSchema,
+    execute: async (input: z.infer<typeof fileOperatorInputSchema>) => {
       ctx.audit(ctx.cwd, {
         kind: "tool",
         agent: ctx.agent,
