@@ -3,8 +3,7 @@ import { Command } from "commander";
 import { resolve } from "node:path";
 import { AgentManager } from "./engine/agentManager.js";
 import { getApiKey, saveApiKey } from "./utils/secrets.js";
-import inquirer from "inquirer";
-import { select } from "@inquirer/prompts";
+import { input, select, password } from "@inquirer/prompts";
 import chalk from "chalk";
 import { ui } from "./utils/ui.js";
 import { selfHealSystem } from "./utils/self-heal.js";
@@ -13,28 +12,28 @@ const program = new Command();
 
 async function startInteractiveREPL(cwd: string) {
   let manager = new AgentManager(cwd);
-  ui.printHeader("SINTENEL INTERACTIVE MODE");
+  ui.printHeader("SINTENEL CLI");
   console.log(chalk.dim("Type your security goals or use /help for commands. Type 'exit' to quit.\n"));
 
-  const checkAuth = async () => {
+  const checkAuth = async (force = false) => {
     const providers: ("gemini" | "openai" | "anthropic")[] = ["gemini", "openai", "anthropic"];
     let anyKey = false;
 
     for (const p of providers) {
       const envKey = p === "gemini" ? "GOOGLE_GENERATIVE_AI_API_KEY" : `${p.toUpperCase()}_API_KEY`;
-      if (!process.env[envKey]?.trim()) {
-        const stored = await getApiKey(p);
-        if (stored) {
-          process.env[envKey] = stored;
-          anyKey = true;
-        }
-      } else {
+      
+      // Always try to fetch from secure storage first if forcing refresh
+      const stored = await getApiKey(p);
+      if (stored && (force || !process.env[envKey]?.trim())) {
+        process.env[envKey] = stored;
+        anyKey = true;
+      } else if (process.env[envKey]?.trim()) {
         anyKey = true;
       }
     }
 
     if (!anyKey) {
-      ui.printWarning("No API Keys found. Type '/auth' to configure a provider.");
+      ui.printWarning("No API Keys found. Type '/auth' to configure a provider and '/model' to select a model.");
     }
   };
 
@@ -43,14 +42,11 @@ async function startInteractiveREPL(cwd: string) {
   const askGoal = async () => {
     let combinedGoal = "";
     for (;;) {
-      const { goal } = await inquirer.prompt([{
-        type: "input",
-        name: "goal",
+      const goal = await input({
         message: combinedGoal ? chalk.dim("...") : chalk.blue.bold("sintenel"),
-        prefix: combinedGoal ? " " : chalk.cyan(">"),
         transformer: (input: string) => chalk.white(input),
-      }]);
-      const trimmed = (goal as string).trim();
+      });
+      const trimmed = goal.trim();
       if (trimmed.endsWith("\\")) {
         combinedGoal += trimmed.slice(0, -1) + "\n";
         continue;
@@ -79,25 +75,24 @@ async function startInteractiveREPL(cwd: string) {
     }
 
     if (lowerGoal === "/auth" || lowerGoal === "auth") {
-      const modelId = process.env.GEMINI_MODEL || "gemini-1.5-flash";
-      let provider: "gemini" | "openai" | "anthropic" = "gemini";
-      
-      if (modelId.startsWith("gpt") || modelId.startsWith("o1")) provider = "openai";
-      else if (modelId.startsWith("claude")) provider = "anthropic";
+      const provider = await select({
+        message: "Select AI Provider to configure:",
+        choices: [
+          { name: "Google Gemini", value: "gemini" as const },
+          { name: "OpenAI", value: "openai" as const },
+          { name: "Anthropic Claude", value: "anthropic" as const },
+        ],
+      });
 
-      ui.printInfo(`Configuring credentials for active provider: ${chalk.bold.cyan(provider.toUpperCase())}`);
-      
-      const { key } = await inquirer.prompt([{
-        type: "password",
-        name: "key",
-        message: `Paste your ${provider} API Key:`,
+      const key = await password({
+        message: `Paste your ${provider.toUpperCase()} API Key:`,
         mask: "*",
         validate: (input: string) => input.length > 5 || "Invalid key length."
-      }]);
+      });
 
       await saveApiKey(provider, key);
-      ui.printSuccess(`${provider} API Key saved securely.`);
-      await checkAuth();
+      ui.printSuccess(`${provider.toUpperCase()} API Key saved securely.`);
+      await checkAuth(true);
       continue;
     }
 
@@ -186,9 +181,7 @@ async function startInteractiveREPL(cwd: string) {
 
 async function runSetupWizard() {
   ui.printSection("Sintenel API Setup");
-  const { provider } = await inquirer.prompt([{
-    type: "list",
-    name: "provider",
+  const provider = await select({
     message: "Which AI provider do you want to configure?",
     choices: [
       { name: "Google Gemini", value: "gemini" },
@@ -196,26 +189,24 @@ async function runSetupWizard() {
       { name: "Anthropic (Claude 3.5, etc.)", value: "anthropic" },
       { name: "Back", value: "back" }
     ]
-  }]);
+  });
 
   if (provider === "back") return;
 
-  const { key } = await inquirer.prompt([{
-    type: "password",
-    name: "key",
+  const key = await password({
     message: `Paste your ${provider} API Key:`,
     mask: "*",
     validate: (input: string) => input.length > 5 || "Invalid key length."
-  }]);
+  });
 
-  await saveApiKey(provider, key);
+  await saveApiKey(provider as any, key);
   ui.printSuccess(`${provider} API Key saved securely.`);
 }
 
 program
   .name("sintenel")
   .description("AI-powered security orchestrator")
-  .version("0.1.0");
+  .version("0.2.0");
 
 program
   .command("setup")

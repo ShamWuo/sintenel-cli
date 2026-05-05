@@ -1,6 +1,6 @@
 {
   "name": "sintenel-cli",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "AI-powered multi-agent security orchestrator with human-in-the-loop safety, tamper-evident audits, and cost-optimized workflows",
   "type": "module",
   "main": "./dist/index.js",
@@ -84,5 +84,10 @@
     "pkg": "^5.8.1",
     "tsx": "^4.19.3",
     "vitest": "^4.1.2"
+  },
+  "pkg": {
+    "assets": [
+      "scripts/security/**/*"
+    ]
   }
 }

@@ -1,8 +1,8 @@
 import { generateText, tool, stepCountIs, type ModelMessage } from "ai";
 import chalk from "chalk";
-import { google } from "@ai-sdk/google";
-import { openai } from "@ai-sdk/openai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { appendAuditLog } from "../utils/audit.js";
 import { confirmYesNo } from "../utils/confirm.js";
 import { createExecutePowerShellTool } from "../tools/executePowerShell.js";
@@ -39,15 +39,24 @@ function getModel(options?: { subagent?: boolean }) {
   const modelId = getModelId(options).toLowerCase();
   
   if (modelId.startsWith("gpt") || modelId.startsWith("o1") || modelId.startsWith("o3")) {
-    return openai(modelId);
+    const provider = createOpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+    return provider(modelId);
   }
   
   if (modelId.startsWith("claude")) {
-    return anthropic(modelId);
+    const provider = createAnthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    });
+    return provider(modelId);
   }
   
   // Default to Google
-  return google(modelId);
+  const provider = createGoogleGenerativeAI({
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  });
+  return provider(modelId);
 }
 
 export type PlanRow = { kind: "recon" | "change" | "verify"; purpose: string; command: string };
@@ -96,14 +105,17 @@ function printPlanTable(plan: ExecutionPlan, rows: PlanRow[]): void {
 }
 
 function pruneMessages(messages: ModelMessage[], keepLast: number = 10): ModelMessage[] {
-  if (messages.length <= keepLast + 2) return messages;
-  const system = messages.find(m => m.role === "system");
-  const userGoal = messages.find((m, i) => m.role === "user" && i > 0);
-  const recent = messages.slice(-keepLast);
+  // Never include 'system' role in the messages array passed to generateText
+  // as it should be passed via the 'system' property instead.
+  const filtered = messages.filter(m => m.role !== "system");
+  if (filtered.length <= keepLast) return filtered;
+  
+  const userGoal = filtered.find(m => m.role === "user");
+  const recent = filtered.slice(-keepLast);
   const pruned: ModelMessage[] = [];
-  if (system) pruned.push(system);
+  
   if (userGoal && !recent.includes(userGoal)) pruned.push(userGoal);
-  pruned.push(...recent.filter(m => m !== system && m !== userGoal));
+  pruned.push(...recent.filter(m => m !== userGoal));
   return pruned;
 }
 
@@ -156,7 +168,7 @@ async function runSubAgent(args: {
       system,
       messages: [{ role: "user", content: args.task }],
       tools,
-      stopWhen: stepCountIs(15),
+      maxSteps: 15,
       maxOutputTokens: MAX_OUTPUT_TOKENS_SUBAGENT,
       temperature: 0.1,
       providerOptions: {
@@ -233,12 +245,7 @@ export class AgentManager {
     ui.printInfo(`[SESSION] Model: ${chalk.bold.cyan(model)} | Quota Mode: ${chalk.yellow(mode)}`);
     
     this.messages.push({ role: "user", content: userGoal });
-    const result = await runOrchestratorSession({ cwd: this.cwd, messages: this.messages, totalUsage: this.totalUsage });
-    if (result.usage) {
-      this.totalUsage.promptTokens += result.usage.inputTokens || 0;
-      this.totalUsage.completionTokens += result.usage.outputTokens || 0;
-      this.totalUsage.totalTokens += result.usage.totalTokens || 0;
-    }
+    await runOrchestratorSession({ cwd: this.cwd, messages: this.messages, totalUsage: this.totalUsage });
   }
 }
 
@@ -287,13 +294,14 @@ export async function runOrchestratorSession(args: {
   };
 
   for (let turn = 1; turn <= maxSessionTurns; turn++) {
+    ui.startSpinner(turn === 1 ? "Analyzing security goal..." : "Thinking...");
     try {
       const result = await withRetry(() => generateText({ 
         model: getModel(), 
         system: ORCHESTRATOR_SYSTEM,
-        messages: turn > 1 ? pruneMessages(messages, 15) : messages.filter(m => m.role !== "system"), 
+        messages: pruneMessages(messages, 15), 
         tools, 
-        stopWhen: stepCountIs(15),
+        maxSteps: 1, // Handle turns manually for better quota resilience
         providerOptions: {
           google: {
             thinkingConfig: {
@@ -364,6 +372,7 @@ export async function runOrchestratorSession(args: {
         }
       }
     } catch (err) {
+      ui.stopSpinner(false, "Session interrupted.");
       ui.printError(`Session error: ${err}`);
       break;
     }

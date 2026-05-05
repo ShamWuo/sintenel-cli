@@ -26,7 +26,7 @@ Sintenel-CLI is designed for extreme convenience. You don't even need to clone t
 ### 2. Option B: One-Line Installer
 Paste this into your PowerShell terminal to download and set up Sintenel automatically:
 ```powershell
-irm https://raw.githubusercontent.com/ShamWuo/sintenel-cli/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/ShamWuo/sintenel-cli/master/scripts/install.ps1 | iex
 ```
 
 ---

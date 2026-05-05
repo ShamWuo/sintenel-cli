@@ -3,6 +3,7 @@ import cliProgress from 'cli-progress';
 import Table from 'cli-table3';
 import { marked } from 'marked';
 import TerminalRenderer from 'marked-terminal';
+import ora, { type Ora } from 'ora';
 import inquirer from 'inquirer';
 
 // Initialize marked with terminal renderer for premium markdown output
@@ -28,25 +29,42 @@ marked.setOptions({
 
 export class UIManager {
   private progressBar: cliProgress.SingleBar | null = null;
+  private spinner: Ora | null = null;
 
   startSpinner(text: string): void {
-    console.log(chalk.blue(`[STATUS] ${text}`));
+    if (this.spinner) {
+      this.spinner.text = text;
+      return;
+    }
+    this.spinner = ora({
+      text,
+      color: 'blue',
+      spinner: 'dots'
+    }).start();
   }
 
   updateSpinner(text: string): void {
-    console.log(chalk.blue(`[UPDATE] ${text}`));
+    if (this.spinner) {
+      this.spinner.text = text;
+    }
   }
 
   stopSpinner(success: boolean, text?: string): void {
-    if (success) {
-      console.log(chalk.green(`[DONE] ${text || "Process completed."}`));
-    } else {
-      console.log(chalk.red(`[FAIL] ${text || "Process failed."}`));
+    if (this.spinner) {
+      if (success) {
+        this.spinner.succeed(text);
+      } else {
+        this.spinner.fail(text);
+      }
+      this.spinner = null;
     }
   }
 
   clearSpinner(): void {
-    // No-op for console logging
+    if (this.spinner) {
+      this.spinner.stop();
+      this.spinner = null;
+    }
   }
 
   createProgressBar(total: number, label: string = 'Progress'): void {
