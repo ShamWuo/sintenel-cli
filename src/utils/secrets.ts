@@ -2,11 +2,15 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 
 // Polyfill require correctly for both ESM (tsx) and CJS (bundle)
-const _require = typeof require !== "undefined"
-  ? require
-  : createRequire(import.meta?.url || "file://" + process.cwd());
+let _require: any;
+try {
+  _require = require;
+} catch {
+  // ESM environment: createRequire requires a file URL or path
+  _require = createRequire(import.meta?.url || `file://${process.cwd()}/index.js`);
+}
 
-// Soft-load keytar
+// Soft-load keytar (native dependency)
 let keytar: any = null;
 try {
   keytar = _require("keytar");

@@ -13,7 +13,7 @@ marked.setOptions({
     html: chalk.gray,
     heading: chalk.bold.cyan,
     firstHeading: chalk.bold.cyan.underline,
-    hr: chalk.dim('─'.repeat(40)),
+    hr: chalk.dim('-'.repeat(40)),
     listitem: chalk.white,
     table: chalk.reset,
     paragraph: chalk.white,
@@ -30,18 +30,18 @@ export class UIManager {
   private progressBar: cliProgress.SingleBar | null = null;
 
   startSpinner(text: string): void {
-    console.log(chalk.blue(`◈ [STATUS] ${text}`));
+    console.log(chalk.blue(`[STATUS] ${text}`));
   }
 
   updateSpinner(text: string): void {
-    console.log(chalk.blue(`◈ [UPDATE] ${text}`));
+    console.log(chalk.blue(`[UPDATE] ${text}`));
   }
 
   stopSpinner(success: boolean, text?: string): void {
     if (success) {
-      console.log(chalk.green(`◈ [DONE] ${text || "Process completed."}`));
+      console.log(chalk.green(`[DONE] ${text || "Process completed."}`));
     } else {
-      console.log(chalk.red(`◈ [FAIL] ${text || "Process failed."}`));
+      console.log(chalk.red(`[FAIL] ${text || "Process failed."}`));
     }
   }
 
@@ -52,8 +52,8 @@ export class UIManager {
   createProgressBar(total: number, label: string = 'Progress'): void {
     this.progressBar = new cliProgress.SingleBar({
       format: `${chalk.blue(label)} | ${chalk.blue('{bar}')} | {percentage}% | {value}/{total}`,
-      barCompleteChar: '\u2588',
-      barIncompleteChar: '\u2591',
+      barCompleteChar: '#',
+      barIncompleteChar: '-',
       hideCursor: true,
     });
     this.progressBar.start(total, 0);
@@ -73,33 +73,33 @@ export class UIManager {
   }
 
   printHeader(text: string): void {
-    console.log('\n' + chalk.bold.blue('╭' + '─'.repeat(58) + '╮'));
+    console.log('\n' + chalk.bold.blue('+' + '-'.repeat(58) + '+'));
     const padding = Math.max(0, Math.floor((58 - text.length) / 2));
     const leftPad = ' '.repeat(padding);
     const rightPad = ' '.repeat(58 - text.length - padding);
-    console.log(chalk.bold.blue('│' + leftPad + chalk.white(text) + rightPad + '│'));
-    console.log(chalk.bold.blue('╰' + '─'.repeat(58) + '╯') + '\n');
+    console.log(chalk.bold.blue('|' + leftPad + chalk.white(text) + rightPad + '|'));
+    console.log(chalk.bold.blue('+' + '-'.repeat(58) + '+') + '\n');
   }
 
   printSection(title: string): void {
-    console.log('\n' + chalk.bold.cyan(`◈ ${title}`));
-    console.log(chalk.dim('─'.repeat(title.length + 2)));
+    console.log('\n' + chalk.bold.cyan(`[SECTION] ${title}`));
+    console.log(chalk.dim('-'.repeat(title.length + 10)));
   }
 
   printSuccess(message: string): void {
-    console.log(chalk.green('✔ ') + message);
+    console.log(chalk.green('[PASS] ') + message);
   }
 
   printError(message: string): void {
-    console.log(chalk.red('✘ ') + message);
+    console.log(chalk.red('[FAIL] ') + message);
   }
 
   printWarning(message: string): void {
-    console.log(chalk.yellow('⚠ ') + message);
+    console.log(chalk.yellow('[WARN] ') + message);
   }
 
   printInfo(message: string): void {
-    console.log(chalk.blue('ℹ ') + message);
+    console.log(chalk.blue('[INFO] ') + message);
   }
 
   /**
@@ -131,7 +131,7 @@ export class UIManager {
     if (count <= 0) return;
     for (let i = 0; i < count; i++) {
        // Move cursor up and clear line
-      process.stdout.write('\u001b[1A\u001b[2K');
+      process.stdout.write('\x1b[1A\x1b[2K');
     }
   }
 
@@ -183,7 +183,7 @@ export class UIManager {
 
   async askConfirmation(prompt: string): Promise<boolean> {
     if (process.env.HEADLESS === "true") {
-      console.log(`${chalk.yellow("◈ [HEADLESS]")} ${prompt} (Auto-Approved)`);
+      console.log(`${chalk.yellow("[HEADLESS]")} ${prompt} (Auto-Approved)`);
       return true;
     }
     const { confirmed } = await inquirer.prompt([

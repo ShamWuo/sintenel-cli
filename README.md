@@ -1,35 +1,47 @@
-# Sintenel-CLI: Nationals-Tier Security Orchestrator ◈
+# Sintenel-CLI: Nationals-Tier Security Orchestrator
 
 **Sintenel-CLI** is an AI-powered, multi-agent security assistant designed for high-stakes vulnerability research, forensic investigation, and automated remediation. It transforms generic AI capabilities into "expert-level" security operations for CyberPatriot and real-world blue/red teaming.
 
 ---
 
-## ⚡ Key Transformations
-
-- **🕵️ Ghost Hunter Recon (Scout)**: Detects "invisible" persistence like WMI Event Subscriptions, IFEO Debugger hijacks, and SUID/SGID misconfigurations.
-- **⚔️ Surgical Remediation (Fixer)**: Applies high-accuracy patches (e.g., permissions resets, service quoting) with mandatory "State-Check -> Verify" loops.
-- **🧠 National-Winner Strategy (Orchestrator)**: Enforces the optimal "Forensics First" order of operations and "Skeptical Auditing" for hidden vulnerabilities.
-- **✨ Premium Interactive REPL**: Real-time AI processing with "Markdown Snapping," multi-line input support (`\`), and session management.
-- **🚀 One-Click Sentinel**: Self-healing bootstrap (`launch-sintenel.bat`) that works even on hardened or malware-infected systems.
+- Ghost Hunter Recon (Scout): Detects "invisible" persistence like WMI Event Subscriptions, IFEO Debugger hijacks, and SUID/SGID misconfigurations.
+- Surgical Remediation (Fixer): Applies high-accuracy patches (e.g., permissions resets, service quoting) with mandatory "State-Check -> Verify" loops.
+- National-Winner Strategy (Orchestrator): Enforces the optimal "Forensics First" order of operations and "Skeptical Auditing" for hidden vulnerabilities.
+- Premium Interactive REPL: Real-time AI processing with "Markdown Snapping," multi-line input support (\), and session management.
+- One-Click Sentinel: Self-healing bootstrap (launch-sintenel.bat) that works even on hardened or malware-infected systems.
 
 ---
 
 ---
 
-## ⚡ Quick Start (The "Guaranteed" Method)
-Sintenel-CLI is designed for extreme environmental resilience, working even on hardened or malware-infected systems.
+## Quick Start (The "No-Install" Method)
+Sintenel-CLI is designed for extreme convenience. You don't even need to clone this repo or have Node.js installed.
 
-### 1️⃣ Initial Setup
-**Double-click** `setup-sintenel.bat`. This will launch the interactive setup wizard to securely store your API Key.
-*   *Alternatively, in terminal:* `node dist/sintenel.cjs setup`
+### 1. Option A: Standalone Executable (Easiest)
+**Download** the latest `Sintenel.exe` from the [Releases](https://github.com/ShamWuo/sintenel-cli/releases) page.
+1. Move it to any folder.
+2. Double-click it to start.
+3. (Optional) Add it to your PATH to run `Sintenel` from anywhere.
 
-### 2️⃣ Launching the App
-**Double-click** `launch-sintenel.bat`. This launches the orchestrator and enters interactive mode.
-*   *Alternatively, in terminal:* `.\launch-sintenel.bat "Your security goal here"`
+### 2. Option B: One-Line Installer
+Paste this into your PowerShell terminal to download and set up Sintenel automatically:
+```powershell
+irm https://raw.githubusercontent.com/ShamWuo/sintenel-cli/main/scripts/install.ps1 | iex
+```
 
 ---
 
-### 🛡️ Resilience: The "Guaranteed Launch" System
+### For Developers (Source Code)
+If you wish to modify the source:
+1.  `git clone ...`
+2.  `npm install`
+3.  `npm run compile` to generate your own binaries.
+
+---
+
+---
+
+### Resilience: The "Guaranteed Launch" System
 Sintenel is designed for extreme environmental resilience...
 
 **Linux:**
@@ -54,7 +66,7 @@ The CLI is optimized for the **Gemini 3** series.
 > [!NOTE]
 > **Quota Warning**: The Google AI Free Tier has a **20 Requests Per Minute (RPM)** limit. If you reach this limit, the CLI will display a countdown until your quota resets.
 
-### 💻 Terminal Usage (Power Users)
+### Terminal Usage (Power Users)
 If you prefer working directly in the terminal, use these commands:
 
 | Action | Command |
@@ -67,7 +79,7 @@ If you prefer working directly in the terminal, use these commands:
 > [!TIP]
 > **PowerShell Users**: If `node` is not in your PATH, the provided `.ps1` and `.bat` scripts will automatically find it for you. Use `.\launch-sintenel.bat` for the most reliable terminal experience.
 
-### 6. 🔥 THE GUARANTEED LAUNCH (Bypassing All Restrictions)
+### THE GUARANTEED LAUNCH (Bypassing All Restrictions)
 If the system is heavily hardened, infected, or has `cmd.exe` blocked, use the **One-Click Launcher**:
 
 - **Windows**: Run `launch-sintenel.bat`.
@@ -78,7 +90,7 @@ This bootstrap will:
 2.  **Auto-discover** `node.exe` even if it's not in the PATH.
 3.  **Self-relaunch** to bypass PowerShell execution policies.
 
-**🔐 PRO TIP (Scoring Target):**
+**PRO TIP (Scoring Target):**
 If `cmd.exe` is blocked, you can often fix it via PowerShell to gain access back:
 ```powershell
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\System" -Name "DisableCMD" -Value 0
@@ -109,6 +121,27 @@ Triggered by goals starting with "Forensic Question" or requesting metadata.
 
 ---
 
+### Quota & Speed control
+If you are using a **Paid Tier** or **Google Cloud (Vertex AI)** account, you can disable the conservative 20s-40s "Free Tier" cooldowns.
+
+| Mode | Env Var | Behavior |
+| :--- | :--- | :--- |
+| **Standard** | `SINTENEL_RETRY_MODE=standard` | Base 10s wait (Safe for 20 RPM Free Tier) |
+| **Aggressive** | `SINTENEL_RETRY_MODE=aggressive` | Base 2s wait (For Paid/Cloud accounts) |
+| **Off** | `SINTENEL_RETRY_MODE=off` | Fail immediately on 429 quota errors |
+
+**Development Progress:**
+- [x] Implement Dynamic Backoff in `agentManager.ts`
+    - [x] Add `SINTENEL_RETRY_MODE` support (standard, aggressive, off)
+    - [x] Refactor `withRetry` to use mode-based delays
+    - [x] Improve error detection for 429 vs 503
+- [x] Update Documentation
+    - [x] Add `SINTENEL_RETRY_MODE` to `README.md`
+- [x] Verification
+    - [x] Run test/build to ensure no syntax errors (Verified)
+
+---
+
 ## 🛡 Security & Safety
 
 - **Execution Plans**: Every action is preceded by a detailed plan requiring operator approval (Y/N).
@@ -118,7 +151,7 @@ Triggered by goals starting with "Forensic Question" or requesting metadata.
 
 ---
 
-## 📚 Expert Playbooks
+## Expert Playbooks
 Sintenel-CLI's "DNA" is built on elite CyberPatriot checklists:
 - `knowledge_base/scoring_playbook.md`: High-value point maximization logic.
 - `knowledge_base/playbook_windows.md`: Registry security and SECPOL IDs.
@@ -127,4 +160,4 @@ Sintenel-CLI's "DNA" is built on elite CyberPatriot checklists:
 
 ---
 
-**Built by security engineers for those who refuse to lose on the final 15 points.** ⚡
+**Built by security engineers for those who refuse to lose on the final 15 points.**

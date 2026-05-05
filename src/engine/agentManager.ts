@@ -22,15 +22,18 @@ import { createVerifyBaselineTool } from "../tools/verifyBaseline.js";
 import { createGenerateFirewallPolicyTool } from "../tools/generateFirewallPolicy.js";
 import { createDiffAuditStateTool } from "../tools/diffAuditState.js";
 
-const DEFAULT_MODEL = "gemini-3-flash"; 
-const DEFAULT_SUBAGENT_MODEL = "gemini-3.1-flash-lite"; 
+const DEFAULT_MODEL = "gemini-2.5-flash"; 
+const DEFAULT_SUBAGENT_MODEL = "gemini-2.5-flash"; 
 const MAX_OUTPUT_TOKENS_SUBAGENT = 2048;
 
-function getModel(options?: { subagent?: boolean }) {
-  const modelId = options?.subagent 
+function getModelId(options?: { subagent?: boolean }): string {
+  return options?.subagent 
     ? (process.env.AI_SUBAGENT_MODEL?.trim() || DEFAULT_SUBAGENT_MODEL)
     : (process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL);
-  return google(modelId);
+}
+
+function getModel(options?: { subagent?: boolean }) {
+  return google(getModelId(options));
 }
 
 export type PlanRow = { kind: "recon" | "change" | "verify"; purpose: string; command: string };
@@ -161,6 +164,9 @@ async function runSubAgent(args: {
 }
 
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  const mode = process.env.SINTENEL_RETRY_MODE?.toLowerCase() || "standard";
+  if (mode === "off") return await fn();
+
   let lastError: any;
   for (let attempt = 1; attempt <= 5; attempt++) {
     try {
@@ -168,16 +174,20 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
     } catch (error: any) {
       lastError = error;
       const errorStr = error?.toString() || "";
-      const isQuotaError = error?.status === 429 || 
-                          errorStr.includes("429") || 
-                          errorStr.includes("RESOURCE_EXHAUSTED") ||
-                          errorStr.includes("rate_limit") ||
-                          errorStr.includes("quota");
+      const status = error?.status || 0;
       
-      if (isQuotaError && attempt < 5) {
-        // 20 RPM limit is strict. Wait longer to allow bucket to refill.
-        const delay = Math.pow(2, attempt) * 10000 + (Math.random() * 5000); // 20s, 40s...
-        ui.printStreamChunk(`\n⚠️  [QUOTA] Model busy. Cooling down for ${Math.round(delay/1000)}s (Attempt ${attempt}/5)...\n`);
+      const isQuota = status === 429 || errorStr.includes("RESOURCE_EXHAUSTED") || errorStr.includes("rate_limit");
+      const isOverloaded = status === 503 || errorStr.includes("overloaded") || errorStr.includes("service_unavailable");
+
+      if ((isQuota || isOverloaded) && attempt < 5) {
+        // Base delay selection
+        let baseDelay = mode === "aggressive" ? 2000 : 10000;
+        if (isOverloaded) baseDelay = 1000; // 503 is temporary, retry faster
+
+        const delay = Math.pow(2, attempt - 1) * baseDelay + (Math.random() * 1000);
+        const reason = isQuota ? "Quota reached" : "Server overloaded";
+        
+        ui.printStreamChunk(`\n[RETRY] [${reason.toUpperCase()}] Waiting ${Math.round(delay/1000)}s (Attempt ${attempt}/5)...\n`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
@@ -193,8 +203,18 @@ export class AgentManager {
   constructor(private readonly cwd: string) {}
   public getMessages() { return this.messages; }
   public getUsage() { return this.totalUsage; }
+  public getModelInfo() {
+    return {
+      orchestrator: getModelId(),
+      subagent: getModelId({ subagent: true })
+    };
+  }
 
   async run(userGoal: string): Promise<void> {
+    const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
+    const mode = process.env.SINTENEL_RETRY_MODE || "standard";
+    ui.printInfo(`[SESSION] Model: ${chalk.bold.cyan(model)} | Quota Mode: ${chalk.yellow(mode)}`);
+    
     this.messages.push({ role: "user", content: userGoal });
     const result = await runOrchestratorSession({ cwd: this.cwd, messages: this.messages, totalUsage: this.totalUsage });
     if (result.usage) {

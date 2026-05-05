@@ -9,7 +9,8 @@
     "node": ">=20"
   },
   "bin": {
-    "sintenel": "./dist/sintenel.cjs"
+    "sintenel": "./dist/sintenel.cjs",
+    "Sintenel": "./dist/sintenel.cjs"
   },
   "scripts": {
     "build": "node node_modules/typescript/bin/tsc",
@@ -23,7 +24,9 @@
     "test:coverage": "vitest run --coverage",
     "benchmark": "node scripts/benchmark.js",
     "analyze-costs": "node scripts/analyze-costs.js",
-    "generate-report": "node scripts/generate-report.js"
+    "generate-report": "node scripts/generate-report.js",
+    "compile": "node scripts/compile.js",
+    "postinstall": "npm run bundle"
   },
   "keywords": [
     "security",
@@ -43,12 +46,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/sintenel-cli.git"
+    "url": "https://github.com/ShamWuo/sintenel-cli.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/sintenel-cli/issues"
+    "url": "https://github.com/ShamWuo/sintenel-cli/issues"
   },
-  "homepage": "https://github.com/yourusername/sintenel-cli#readme",
+  "homepage": "https://github.com/ShamWuo/sintenel-cli#readme",
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.64",
     "@ai-sdk/google": "^1.2.10",
@@ -59,11 +62,13 @@
     "cli-table3": "^0.6.5",
     "commander": "^12.1.0",
     "dotenv": "^16.4.7",
+    "esbuild": "^0.27.7",
     "inquirer": "^13.3.2",
     "keytar": "^7.9.0",
     "marked": "^15.0.12",
     "marked-terminal": "^7.3.0",
     "ora": "^9.3.0",
+    "typescript": "^5.8.2",
     "zod": "^3.24.2"
   },
   "devDependencies": {
@@ -74,10 +79,9 @@
     "@types/node": "^22.19.15",
     "@vitest/coverage-v8": "^4.1.2",
     "@vitest/ui": "^4.1.2",
-    "esbuild": "^0.27.7",
     "happy-dom": "^20.8.8",
+    "pkg": "^5.8.1",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.2",
     "vitest": "^4.1.2"
   }
 }

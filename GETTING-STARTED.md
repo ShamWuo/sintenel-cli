@@ -11,28 +11,43 @@ Complete step-by-step guide to your first security audit in 5 minutes.
 - **Git**: For cloning the repository
 - **API Key**: [Google Gemini API key](https://makersuite.google.com/app/apikey) (free tier available)
 
-### Step 2: Clone & Install
+### Step 2: Choose Your Path
 
+#### Option A: One-Line Installer (Recommended)
+Paste this into PowerShell:
+```powershell
+irm https://raw.githubusercontent.com/ShamWuo/sintenel-cli/main/scripts/install.ps1 | iex
+```
+
+#### Option B: Standalone Executable
+1. **Download** `Sintenel.exe` from [Releases](https://github.com/ShamWuo/sintenel-cli/releases).
+2. Run it from anywhere.
+
+#### Option C: For Developers (Build from Source)
 ```bash
 git clone https://github.com/yourusername/sintenel-cli.git
 cd sintenel-cli
 npm install
+npm run compile
 ```
+
+[OK] All methods eventually lead to the same command: `Sintenel`.
+
+### Step 3: Configure (Automatic)
+
+You don't need to manually edit `.env` files. Simply run:
+
+```bash
+Sintenel
+```
+
+The **Setup Wizard** will automatically launch and guide you through securely configuring your API key.
 
 Expected output:
 ```
-added 120 packages in 15s
-```
-
-### Step 3: Configure
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-```env
-GOOGLE_GENERATIVE_AI_API_KEY=your_gemini_api_key_here
+[STATUS] API Key not found. Let's set up Sintenel now!
+Paste your Google Generative AI API Key: ************
+[DONE] API Key saved securely.
 ```
 
 ### Step 4: Verify
@@ -44,11 +59,11 @@ npm run build
 
 Expected output:
 ```
-✓ 45 tests passed
+[PASS] 45 tests passed
 Build successful
 ```
 
-✅ **You're ready!**
+[OK] **You're ready!**
 
 ---
 
@@ -65,8 +80,8 @@ npm run dev -- "Scan examples/vulnerable-api for hardcoded secrets"
 1. **Orchestrator Planning** (5s)
    ```
    [SINTENEL-CLI SESSION]
-   ℹ Goal: Scan examples/vulnerable-api for hardcoded secrets
-   ℹ Working directory: C:\Users\you\sintenel-cli
+   [INFO] Goal: Scan examples/vulnerable-api for hardcoded secrets
+   [INFO] Working directory: C:\Users\you\sintenel-cli
    
    [Orchestrator]
    I'll scan the vulnerable API example for hardcoded credentials...
@@ -78,9 +93,9 @@ npm run dev -- "Scan examples/vulnerable-api for hardcoded secrets"
    EXECUTION PLAN (PENDING CONFIRMATION)
    ════════════════════════════════════════════════════════════
    
-   ℹ Summary: Scan for hardcoded API keys, passwords, and secrets
-   ℹ Objective: Identify credential exposure risks
-   ℹ Scope: examples/vulnerable-api/**/*.ts
+   [INFO] Summary: Scan for hardcoded API keys, passwords, and secrets
+   [INFO] Objective: Identify credential exposure risks
+   [INFO] Scope: examples/vulnerable-api/**/*.ts
    
    Purpose              │ Command
    ─────────────────────┼──────────────────────────────────
@@ -94,17 +109,17 @@ npm run dev -- "Scan examples/vulnerable-api for hardcoded secrets"
 
 4. **Scout Execution** (5s)
    ```
-   ⠋ Scout analyzing files...
-   ✓ Scout found 3 secrets
+   [STATUS] Scout analyzing files...
+   [DONE] Scout found 3 secrets
    
    [Scout]
    Found 3 hardcoded secrets:
    
-   ⚠ server-before.ts:8
+   [WARN] server-before.ts:8
       password: 'password123'
       Risk: High - Credential in version control
    
-   ⚠ server-before.ts:8  
+   [WARN] server-before.ts:8  
       apiKey: 'sk-prod-abc123'
       Risk: Critical - Production key exposed
    ```
@@ -187,8 +202,8 @@ Scope: src/api/users.ts, src/api/posts.ts
 Rollback: Restore from .backup.* files
 
 Risks:
-  ⚠ May need query logic adjustment
-  ⚠ Type mismatches possible
+  [WARN] May need query logic adjustment
+  [WARN] Type mismatches possible
 
 Purpose              │ Command
 ─────────────────────┼──────────────────
@@ -259,7 +274,7 @@ High-assurance approval required.
 Type the following challenge: KX9P2M
 > KX9P2M
 
-✓ Approved. Executing plan...
+[DONE] Approved. Executing plan...
 ```
 
 **Use cases**: Production systems, critical infrastructure
@@ -351,7 +366,7 @@ npm run analyze-costs
 
 ## Next Steps
 
-### Level 1: Try Examples ✅
+### Level 1: Try Examples [OK]
 
 Work through the vulnerable API example:
 ```bash
@@ -360,7 +375,7 @@ cat README.md
 # Follow the instructions
 ```
 
-### Level 2: Real Project ✅
+### Level 2: Real Project [OK]
 
 Run on your own codebase:
 ```bash
@@ -368,14 +383,14 @@ cd /path/to/your/project
 sintenel "Scan for SQL injection and hardcoded secrets"
 ```
 
-### Level 3: Customize ✅
+### Level 3: Customize [OK]
 
 Edit agent behaviors:
 - `src/agents/orchestrator.ts` - Planning strategy
 - `src/agents/scout.ts` - Reconnaissance focus
 - `src/agents/fixer.ts` - Remediation approach
 
-### Level 4: Contribute ✅
+### Level 4: Contribute [OK]
 
 See [CONTRIBUTING.md](CONTRIBUTING.md):
 - Report bugs
@@ -387,22 +402,20 @@ See [CONTRIBUTING.md](CONTRIBUTING.md):
 
 ## Best Practices
 
-### ✅ DO
+### [OK] DO
+- Start small: Test on example project first
+- Review plans: Understand what will happen before approving
+- Use version control: Git allows easy rollback
+- Enable backups: Use backupExisting: true
+- Check audit logs: Review after sessions
+- Narrow scope: Target specific directories
 
-- **Start small**: Test on example project first
-- **Review plans**: Understand what will happen before approving
-- **Use version control**: Git allows easy rollback
-- **Enable backups**: Use `backupExisting: true`
-- **Check audit logs**: Review after sessions
-- **Narrow scope**: Target specific directories
-
-### ❌ DON'T
-
-- **Don't skip approval**: The gate exists for safety
-- **Don't use on production without testing**: Try on staging first
-- **Don't commit `.env`**: Keep API keys secret
-- **Don't ignore risks**: If plan shows high risks, proceed cautiously
-- **Don't disable auditing**: Logs are critical for debugging
+[FAIL] DON'T
+- Don't skip approval: The gate exists for safety
+- Don't use on production without testing: Try on staging first
+- Don't commit .env: Keep API keys secret
+- Don't ignore risks: If plan shows high risks, proceed cautiously
+- Don't disable auditing: Logs are critical for debugging
 
 ---
 
@@ -438,6 +451,6 @@ You're ready to use Sintenel-CLI in production when:
 
 ---
 
-**Welcome to Sintenel-CLI! You're now equipped to automate security remediation. 🚀**
+**Welcome to Sintenel-CLI! You're now equipped to automate security remediation.**
 
 **Next**: Try [examples/vulnerable-api](examples/vulnerable-api/README.md)

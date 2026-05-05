@@ -21,7 +21,7 @@ async function startInteractiveREPL(cwd: string) {
       if (storedKey) {
         process.env.GOOGLE_GENERATIVE_AI_API_KEY = storedKey;
       } else {
-        ui.printWarning("⚠️ API Key missing. Type '/auth' to set it up.");
+        ui.printWarning("API Key missing. Type '/auth' to set it up.");
       }
     }
   };
@@ -35,7 +35,7 @@ async function startInteractiveREPL(cwd: string) {
         type: "input",
         name: "goal",
         message: combinedGoal ? chalk.dim("...") : chalk.blue.bold("sintenel"),
-        prefix: combinedGoal ? " " : chalk.cyan("◈"),
+        prefix: combinedGoal ? " " : chalk.cyan(">"),
         transformer: (input: string) => chalk.white(input),
       }]);
       const trimmed = (goal as string).trim();
@@ -61,6 +61,7 @@ async function startInteractiveREPL(cwd: string) {
       console.log(chalk.cyan("  /reset") + "   - Reset conversation context");
       console.log(chalk.cyan("  /auth") + "    - Setup API Key interactively");
       console.log(chalk.cyan("  /usage") + "   - Token usage");
+      console.log(chalk.cyan("  /model") + "   - Current active models");
       console.log(chalk.cyan("  exit") + "      - End session\n");
       continue;
     }
@@ -81,6 +82,19 @@ async function startInteractiveREPL(cwd: string) {
     if (lowerGoal === "/reset") {
       manager = new AgentManager(cwd);
       ui.printSuccess("Context reset.");
+      continue;
+    }
+
+    if (lowerGoal === "/usage") {
+      ui.printUsageStats(manager.getUsage());
+      continue;
+    }
+
+    if (lowerGoal === "/model") {
+      const info = manager.getModelInfo();
+      ui.printSection("Active Models");
+      ui.printInfo(`Orchestrator: ${chalk.yellow(info.orchestrator)}`);
+      ui.printInfo(`Sub-agents:   ${chalk.yellow(info.subagent)}`);
       continue;
     }
 
@@ -136,8 +150,15 @@ program
     }
 
     if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-      ui.printError("Missing API Key. Run 'node dist/sintenel.cjs setup' to configure.");
-      process.exit(1);
+      ui.printWarning("\n[API] API Key not found. Let's set up Sintenel now!");
+      await runSetupWizard();
+      const key = await getApiKey();
+      if (key) {
+        process.env.GOOGLE_GENERATIVE_AI_API_KEY = key;
+      } else {
+        ui.printError("Setup cancelled. Please provide an API key to continue.");
+        process.exit(1);
+      }
     }
 
     try {

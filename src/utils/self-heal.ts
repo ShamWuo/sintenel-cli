@@ -21,7 +21,7 @@ export async function selfHealSystem() {
     }
   } catch (err: any) {
     if (err.name === "AbortError" || err.code === "ENOENT" || err.message.includes("find the file specified") || err.message.includes("denied")) {
-        console.log(chalk.yellow("◈ [SYSTEM] Detected cmd.exe restriction or hang. Attempting self-healing via PowerShell..."));
+        console.log(chalk.yellow("[SYSTEM] Detected cmd.exe restriction or hang. Attempting self-healing via PowerShell..."));
         
         try {
             await execFileAsync("powershell.exe", [
@@ -31,7 +31,7 @@ export async function selfHealSystem() {
                 "& { Set-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -Name 'DisableCMD' -Value 0 -ErrorAction SilentlyContinue }"
             ], { signal: AbortSignal.timeout(5000) });
             
-            console.log(chalk.green("◈ [SYSTEM] Registry repair attempted."));
+            console.log(chalk.green("[SYSTEM] Registry repair attempted."));
         } catch (healErr) {}
     }
   }
