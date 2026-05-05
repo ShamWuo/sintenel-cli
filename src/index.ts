@@ -138,9 +138,7 @@ async function startInteractiveREPL(cwd: string) {
             { name: "Gemini 3.1 Flash-Lite (Fast & Cost-Efficient)", value: "gemini-3.1-flash-lite-preview" },
             { name: "Gemini 2.5 Pro (Deep Reasoning)", value: "gemini-2.5-pro" },
             { name: "Gemini 2.5 Flash (Price-Performance Balance)", value: "gemini-2.5-flash" },
-            { name: "Gemini 2.5 Flash-Lite (Fastest 2.5 Model)", value: "gemini-2.5-flash-lite" },
-            { name: "Gemini 1.5 Pro (Legacy Stable)", value: "gemini-1.5-pro" },
-            { name: "Gemini 1.5 Flash (Legacy Fast)", value: "gemini-1.5-flash" }
+            { name: "Gemini 2.5 Flash-Lite (Fastest 2.5 Model)", value: "gemini-2.5-flash-lite" }
           ],
           openai: [
             { name: "GPT-4o (Frontier Model)", value: "gpt-4o" },

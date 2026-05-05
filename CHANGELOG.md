@@ -80,9 +80,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.0] - 2026-05-05
+
+### Added
+
+#### AI Engine
+- **Vercel AI SDK 6.0 Migration**: Full refactor of the core orchestration loop to utilize the latest Vercel AI SDK patterns (`generateText`, `ModelMessage`, etc.).
+- **Gemini Thinking/Reasoning Integration**: Support for Gemini 3.1 and 2.5 "Thinking" models with a 2048-token reasoning budget for deep mission analysis.
+- **Synchronous Tool Execution**: Leveraged SDK 6.0's turn-based loop to satisfy `thought_signature` requirements, ensuring stable and predictable tool interactions.
+
+#### UX/UI
+- **Interactive Model Selector**: Modernized the `/model` command using `@inquirer/prompts` for a smooth, arrow-key based model selection experience on Windows.
+- **Ambiguity Detection**: Implemented logic in the Orchestrator to detect and reject typo-ridden or vague security goals.
+
+#### Resilience
+- **Model Signature Enforcement**: Automated handling of Gemini-specific tool call signatures to prevent execution errors in complex reasoning chains.
+
+### Changed
+- Standardized on `ModelMessage` for internal agent communication.
+- Optimized message pruning logic to better preserve mission-critical system context.
+
+### Removed
+- Legacy Gemini 1.5 models from selection menus to prioritize frontier reasoning performance.
+
+---
+
 ## [Unreleased]
 
-### Planned for 0.2.0
+### Planned for 0.3.0
 
 #### Security Integration
 - [ ] CVE database integration
@@ -160,6 +185,7 @@ No breaking changes (initial release).
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.2.0 | 2026-05-05 | AI SDK 6.0, Thinking models, Interactive UI |
 | 0.1.0 | 2026-03-26 | Initial release with multi-agent orchestration |
 
 ---

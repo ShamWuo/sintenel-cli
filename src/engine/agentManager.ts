@@ -46,14 +46,8 @@ function getModel(options?: { subagent?: boolean }) {
     return anthropic(modelId);
   }
   
-  // Default to Google with thinking enabled for high-level models
-  const isHighLevel = modelId.includes("pro") || modelId.includes("thinking") || modelId.includes("2.5") || modelId.includes("3.1");
-  return google(modelId, isHighLevel ? {
-    thinkingConfig: {
-      thinkingBudget: 2048,
-      includeThoughts: true
-    }
-  } : {});
+  // Default to Google
+  return google(modelId);
 }
 
 export type PlanRow = { kind: "recon" | "change" | "verify"; purpose: string; command: string };
@@ -164,7 +158,15 @@ async function runSubAgent(args: {
       tools,
       stopWhen: stepCountIs(15),
       maxOutputTokens: MAX_OUTPUT_TOKENS_SUBAGENT,
-      temperature: 0.1
+      temperature: 0.1,
+      providerOptions: {
+        google: {
+          thinkingConfig: {
+            thinkingBudget: 2048,
+            includeThoughts: true
+          }
+        }
+      }
     });
 
     const fullText = result.text;
@@ -291,7 +293,15 @@ export async function runOrchestratorSession(args: {
         system: ORCHESTRATOR_SYSTEM,
         messages: turn > 1 ? pruneMessages(messages, 15) : messages.filter(m => m.role !== "system"), 
         tools, 
-        stopWhen: stepCountIs(15)
+        stopWhen: stepCountIs(15),
+        providerOptions: {
+          google: {
+            thinkingConfig: {
+              thinkingBudget: 2048,
+              includeThoughts: true
+            }
+          }
+        }
       }));
 
       ui.clearSpinner();
